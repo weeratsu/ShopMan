@@ -55,8 +55,7 @@
   @keyframes slide { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
   /* แถวต้นฉบับที่กำลังลาก = เอาออกจาก flow (height:0) แล้วใช้ transform ของแถวอื่นเปิด gap แทน */
   li.ghost-src {
-    opacity: 0; height: 0; min-height: 0; padding-top: 0; padding-bottom: 0;
-    border: none; overflow: hidden; transition: none; pointer-events: none;
+    opacity: 0; transition: none; pointer-events: none;
   }
   /* ตัวโคลนที่ลอยตามนิ้ว */
   li.floating {
@@ -223,6 +222,7 @@
   var activeStore = "";                     // ร้านที่ filter อยู่ ("" = ทั้งหมด)
   var selectOpen = false;                   // dropdown เลือกร้านเปิดอยู่ไหม
   var renderDeferred = false;               // มี render ที่ถูกเลื่อนไว้ระหว่าง dropdown เปิด
+  var lastSig = null;                       // signature ของสถานะที่ render ล่าสุด (กันจอกระพริบตอน sync)
   // guard กัน empty-overwrite:
   //  pulledOnce = ดึงจาก Sheet สำเร็จอย่างน้อย 1 ครั้งในรอบนี้แล้วหรือยัง
   //  hadLocal   = ตอนเปิดแอป มีข้อมูลจริงในเครื่องอยู่ก่อนไหม
@@ -295,13 +295,26 @@
     return items.filter(function (x) { return !x.deleted; }).length > 0;
   }
 
+  function mergeFromServer(serverItems) {
+    var localById = {};
+    items.forEach(function (x) { localById[x.id] = x; });
+    return serverItems.filter(function (x) { return !x.deleted; }).map(function (sv) {
+      var lo = localById[sv.id];
+      if (lo) {
+        if ((sv.store == null || sv.store === "") && lo.store) sv.store = lo.store;
+        if ((sv.order == null || sv.order === 0) && lo.order) sv.order = lo.order;
+      }
+      return sv;
+    });
+  }
+
   function pull() {
     if (!canSync()) return;
     setSync("⏳ กำลังดึงข้อมูล...");
     fetchJson({ method: "GET" }, 0, function (err, res) {
       if (!err && res && res.items) {
         pulledOnce = true;
-        items = res.items.filter(function (x) { return !x.deleted; });
+        items = mergeFromServer(res.items);
         normalizeOrder();
         save(); render();
         setSync("✓ ซิงก์ล่าสุด " + fmt(Date.now()));
@@ -332,7 +345,7 @@
     }, 0, function (err, res) {
       if (!err && res && res.items) {
         pulledOnce = true;
-        items = res.items.filter(function (x) { return !x.deleted; });
+        items = mergeFromServer(res.items);
         normalizeOrder();
         save(); render();
         setSync("✓ ซิงก์ล่าสุด " + fmt(Date.now()));
@@ -341,14 +354,26 @@
   }
 
   /* ---------- render ---------- */
-  function render() {
+  // สร้าง signature ของสถานะที่มีผลต่อการแสดงผล — ถ้าไม่เปลี่ยน ไม่ต้อง re-render (กันจอกระพริบ)
+  function sigOf() {
+    var vis = items.filter(function (x) { return !x.deleted; })
+      .map(function (x) { return x.id + ":" + (x.done ? 1 : 0) + ":" + (x.order || 0) + ":" + (x.store || "") + ":" + x.text + ":" + (x.doneAt || 0); });
+    return activeStore + "|" + stores.join(",") + "|" + vis.sort().join("|");
+  }
+
+  function render(force) {
     // ถ้า dropdown เลือกร้านเปิดอยู่ อย่าเพิ่ง re-render (จะไปปิด dropdown) — เลื่อนไว้ทำหลัง blur
     if (selectOpen) { renderDeferred = true; return; }
+    // กันจอกระพริบ: ถ้าไม่ได้บังคับ และสถานะไม่เปลี่ยนจากครั้งก่อน → ข้าม (ไม่ล้าง DOM)
+    var sig = sigOf();
+    if (!force && sig === lastSig) return;
+    lastSig = sig;
     renderFilter();
     list.innerHTML = "";
     var visible = items.filter(function (x) {
       if (x.deleted) return false;
-      if (activeStore && (x.store || "") !== activeStore) return false; // filter ตามร้าน
+      if (activeStore === "__none__") { if (x.store) return false; }  // เฉพาะที่ไม่ระบุร้าน
+      else if (activeStore && (x.store || "") !== activeStore) return false; // filter ตามร้าน
       return true;
     });
     if (!visible.length) {
@@ -388,8 +413,8 @@
         var meta = document.createElement("div");
         meta.className = "meta";
         var mhtml = "➕ เพิ่ม: " + fmt(it.addedAt);
-        if (it.store) mhtml += "  <span class=\"store-tag\">🏪 " + it.store + "</span>";
-        if (it.done && it.doneAt) mhtml += "<br><span class=\"buy\">✓ ซื้อ: " + fmt(it.doneAt) + "</span>";
+        if (it.store) mhtml += "  <span class='store-tag'>🏪 " + it.store + "</span>";
+        if (it.done && it.doneAt) mhtml += "<br><span class='buy'>✓ ซื้อ: " + fmt(it.doneAt) + "</span>";
         meta.innerHTML = mhtml;
 
         // dropdown เลือกร้านของ item นี้
@@ -412,6 +437,7 @@
         sel.addEventListener("focus", function () { selectOpen = true; });
         sel.addEventListener("blur", function () {
           selectOpen = false;
+          // ไม่ต้อง render ที่นี่ — setStore อัปเดต in-place ให้แล้ว (กันจอกระพริบ)
           if (renderDeferred) { renderDeferred = false; render(); }
         });
 
@@ -436,16 +462,14 @@
     it.done = !it.done;
     it.doneAt = it.done ? Date.now() : null;
     it.updatedAt = Date.now();
-    save(); render(); push();
+    save(); render(true); push();
   }
 
-  /* ---------- drag reorder (เมาส์ + นิ้ว) ---------- */
-  var dragId = null, floatEl = null, srcEl = null, grabDY = 0, lastClientY = 0, autoScrollRAF = null;
-  var dragH = 0, dropIndex = 0, baseCenters = [], baseRows = [];
+  /* ---------- drag reorder (เมาส์ + นิ้ว) — ย้าย ghost placeholder ใน DOM ---------- */
+  var dragId = null, floatEl = null, srcEl = null, grabDY = 0, lastClientY = 0, autoScrollRAF = null, dragH = 0;
 
   function attachDrag() {
-    var handles = list.querySelectorAll("[data-handle]");
-    handles.forEach(function (h) {
+    list.querySelectorAll("[data-handle]").forEach(function (h) {
       h.addEventListener("pointerdown", onDown);
     });
   }
@@ -463,28 +487,18 @@
     srcEl = li;
     lastClientY = e.clientY;
 
-    // สร้างตัวโคลนลอยตามนิ้ว ขนาด/ตำแหน่งเท่าของจริง
     var rect = li.getBoundingClientRect();
     grabDY = e.clientY - rect.top;
     dragH = rect.height;
+
+    // ตัวโคลนลอยตามนิ้ว
     floatEl = li.cloneNode(true);
     floatEl.classList.add("floating");
     floatEl.style.width = rect.width + "px";
     floatEl.style.top = rect.top + "px";
     document.body.appendChild(floatEl);
 
-    // mark แถวอื่นเป็น shift-candidate + เก็บ "จุดกึ่งกลางฐาน" (page coords) ครั้งเดียว
-    // ก่อน ghost ยุบ — ใช้ค่านี้คำนวณ insert ตลอดการลาก (ไม่วัด DOM สดที่กำลัง transition)
-    baseRows = []; baseCenters = [];
-    Array.prototype.slice.call(list.querySelectorAll("li")).forEach(function (r) {
-      if (r === srcEl) return;
-      r.classList.add("shift-candidate", "shift");
-      var rc = r.getBoundingClientRect();
-      baseRows.push(r);
-      baseCenters.push(rc.top + window.scrollY + rc.height / 2); // page-based กัน scroll เพี้ยน
-    });
-
-    // ยุบแถวต้นฉบับเป็นช่องว่าง
+    // แถวต้นฉบับกลายเป็น placeholder (คงความสูง อยู่ใน flow) — แถวอื่นไม่ไหลขึ้น
     li.classList.add("ghost-src");
 
     try { e.target.setPointerCapture(e.pointerId); } catch (ignore) {}
@@ -492,7 +506,33 @@
     document.addEventListener("pointerup", onUp);
   }
 
-  // เลื่อนหน้าจออัตโนมัติเมื่อลากใกล้ขอบบน/ล่าง
+  function positionFloat() {
+    if (!floatEl) return;
+    var top = lastClientY - grabDY;
+    var maxTop = window.innerHeight - floatEl.offsetHeight - 2;
+    if (top < 2) top = 2;
+    if (top > maxTop) top = maxTop;
+    floatEl.style.top = top + "px";
+  }
+
+  // ย้าย ghost placeholder ไปยังตำแหน่งที่นิ้วชี้ (insertBefore) — CSS transition ทำให้แถวอื่นเลื่อนนุ่มเอง
+  function updateGhostPos() {
+    if (!srcEl) return;
+    var rows = Array.prototype.slice.call(list.querySelectorAll("li"))
+                    .filter(function (r) { return r !== srcEl && r.getAttribute("data-id"); });
+    var y = lastClientY;
+    var target = null;
+    for (var i = 0; i < rows.length; i++) {
+      var rc = rows[i].getBoundingClientRect();
+      if (y < rc.top + rc.height / 2) { target = rows[i]; break; }
+    }
+    if (target) {
+      if (srcEl.nextSibling !== target) list.insertBefore(srcEl, target);
+    } else {
+      if (list.lastChild !== srcEl) list.appendChild(srcEl);
+    }
+  }
+
   function autoScroll() {
     autoScrollRAF = null;
     if (dragId == null) return;
@@ -502,42 +542,16 @@
     if (speed !== 0) {
       window.scrollBy(0, speed);
       positionFloat();
-      updateShift();
+      updateGhostPos();
       autoScrollRAF = requestAnimationFrame(autoScroll);
     }
-  }
-
-  function positionFloat() {
-    if (!floatEl) return;
-    var top = lastClientY - grabDY;
-    var maxTop = window.innerHeight - floatEl.offsetHeight - 2;
-    if (top < 2) top = 2; if (top > maxTop) top = maxTop;
-    floatEl.style.top = top + "px";
-  }
-
-  // แถวอื่นเลื่อนหลบเปิดช่องตรงตำแหน่งที่จะวาง — ทำงานถูกทั้งลากขึ้นและลง
-  //  แถวที่อยู่ "ก่อน" ตำแหน่งแทรก = อยู่กับที่
-  //  แถวที่อยู่ "ตั้งแต่" ตำแหน่งแทรกลงไป = เลื่อนลงเปิดช่อง (เห็นว่าตัวที่ลากจะมาแทน)
-  function updateShift() {
-    var h = dragH || 0;
-    // เทียบนิ้ว (page Y) กับ "จุดกึ่งกลางฐาน" ที่ snapshot ไว้ตอน onDown — ไม่พึ่ง DOM สด
-    var midPage = lastClientY + window.scrollY;
-    var insertPos = baseCenters.length;
-    for (var i = 0; i < baseCenters.length; i++) {
-      if (midPage < baseCenters[i]) { insertPos = i; break; }
-    }
-    // เลื่อนแถวตั้งแต่ insertPos ลงไป เปิดช่อง (realtime, พร้อมกัน) — อ้างอิง baseRows ที่ snapshot ไว้
-    for (var j = 0; j < baseRows.length; j++) {
-      baseRows[j].style.transform = (j >= insertPos) ? "translateY(" + h + "px)" : "";
-    }
-    dropIndex = insertPos;
   }
 
   function onMove(e) {
     if (dragId == null) return;
     lastClientY = e.clientY;
     positionFloat();
-    updateShift();
+    updateGhostPos();
     if (autoScrollRAF == null) autoScrollRAF = requestAnimationFrame(autoScroll);
   }
 
@@ -547,38 +561,40 @@
     if (dragId == null) return;
     if (autoScrollRAF != null) { cancelAnimationFrame(autoScrollRAF); autoScrollRAF = null; }
 
-    var fromItem = items.filter(function (x) { return x.id === dragId; })[0];
-
-    // targetId = แถวที่ตำแหน่ง dropIndex (อ้างอิง baseRows snapshot ตรงกับช่องที่เปิดไว้)
-    var targetId = (dropIndex < baseRows.length) ? baseRows[dropIndex].getAttribute("data-id") : null;
-
-    // เก็บกวาด floating/placeholder/shift + snapshot
     if (floatEl && floatEl.parentNode) floatEl.parentNode.removeChild(floatEl);
-    floatEl = null; srcEl = null; baseRows = []; baseCenters = [];
+    floatEl = null;
+    if (srcEl) srcEl.classList.remove("ghost-src");
 
-    reorder(dragId, targetId, fromItem);
+    // อ่านลำดับใหม่จาก DOM (ตาม data-id ปัจจุบันในลิสต์) → เขียน order ให้กลุ่มเดียวกัน
+    commitOrderFromDOM(dragId);
+    srcEl = null;
     dragId = null;
   }
 
-  function reorder(fromId, beforeId, fromItem) {
-    if (!fromItem) return;
-    // จัดเฉพาะในกลุ่มเดียวกัน (done เท่ากัน) ตาม order ปัจจุบัน
-    var group = items.filter(function (x) { return !x.deleted && !!x.done === !!fromItem.done; })
-                     .sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
-    group = group.filter(function (x) { return x.id !== fromId; });
-    var idx = group.length; // default ต่อท้าย
-    for (var i = 0; i < group.length; i++) { if (group[i].id === beforeId) { idx = i; break; } }
-    group.splice(idx, 0, fromItem);
-    // เขียน order ใหม่ตามลำดับในกลุ่ม + mark updatedAt
+  // อ่านลำดับ <li> ใน DOM แล้วเขียน order กลับเข้า items (เฉพาะกลุ่ม done เดียวกับตัวที่ลาก)
+  function commitOrderFromDOM(movedId) {
+    var moved = items.filter(function (x) { return x.id === movedId; })[0];
+    if (!moved) return;
+    var domIds = Array.prototype.slice.call(list.querySelectorAll("li"))
+                      .map(function (r) { return r.getAttribute("data-id"); })
+                      .filter(function (id) { return !!id; });
+    // ลำดับใน DOM เฉพาะ item ที่ done เท่ากับตัวที่ลาก
+    var sameGroup = domIds.filter(function (id) {
+      var it = items.filter(function (x) { return x.id === id; })[0];
+      return it && !it.deleted && (!!it.done === !!moved.done);
+    });
     var now = Date.now();
-    group.forEach(function (x, i2) { x.order = i2 + 1; x.updatedAt = now; });
-    save(); render(); push();
+    sameGroup.forEach(function (id, i) {
+      var it = items.filter(function (x) { return x.id === id; })[0];
+      if (it) { it.order = i + 1; it.updatedAt = now; }
+    });
+    save(); render(true); push();
   }
 
   function removeItem(it) {
     it.deleted = true;
     it.updatedAt = Date.now();
-    save(); render(); push();
+    save(); render(true); push();
   }
 
   function add() {
@@ -588,7 +604,7 @@
     var maxOrder = items.reduce(function (m, x) { return Math.max(m, x.order == null ? 0 : x.order); }, 0);
     items.push({ id: now + "" + Math.random().toString(36).slice(2, 6), text: t, done: false, addedAt: now, doneAt: null, updatedAt: now, deleted: false, order: maxOrder + 1, store: "" });
     inp.value = "";
-    save(); render(); inp.focus(); push();
+    save(); render(true); inp.focus(); push();
   }
 
   document.getElementById("add").onclick = add;
@@ -596,7 +612,7 @@
   document.getElementById("clearDone").onclick = function () {
     var now = Date.now();
     items.forEach(function (x) { if (x.done && !x.deleted) { x.deleted = true; x.updatedAt = now; } });
-    save(); render(); push();
+    save(); render(true); push();
   };
 
   /* ---------- store (ร้านค้า) ---------- */
@@ -604,8 +620,23 @@
     it.store = storeName;
     it.updatedAt = Date.now();
     save();
-    // ไม่ render ทันที — ปล่อยให้ blur ของ select เป็นตัว render (กัน dropdown ถูกปิดกลางคัน)
-    renderDeferred = true;
+    // อัปเดต in-place ป้ายร้านของแถวนี้ (ไม่ rebuild ลิสต์ → ไม่กระพริบ)
+    var li = list.querySelector('li[data-id="' + it.id + '"]');
+    if (li) {
+      var meta = li.querySelector(".meta");
+      if (meta) {
+        var mhtml = "➕ เพิ่ม: " + fmt(it.addedAt);
+        if (it.store) mhtml += "  <span class='store-tag'>🏪 " + it.store + "</span>";
+        if (it.done && it.doneAt) mhtml += "<br><span class='buy'>✓ ซื้อ: " + fmt(it.doneAt) + "</span>";
+        meta.innerHTML = mhtml;
+      }
+    }
+    renderFilter();  // อัปเดต chip (จำนวน/chip ไม่ระบุร้าน) โดยไม่แตะลิสต์
+    lastSig = sigOf();  // sync signature กัน render ซ้ำซ้อนตอน push กลับมา
+    // ถ้ากำลัง filter ร้านอยู่ และแถวนี้หลุดเงื่อนไข filter แล้ว → ต้อง rebuild เพื่อซ่อน
+    if (activeStore && (activeStore === "__none__" ? !!it.store : (it.store || "") !== activeStore)) {
+      render(true);
+    }
     push();
   }
 
@@ -621,6 +652,15 @@
     all.textContent = "ทั้งหมด";
     all.onclick = function () { activeStore = ""; render(); };
     bar.appendChild(all);
+    // chip: เฉพาะรายการที่ยังไม่ระบุร้าน
+    var noneCount = items.filter(function (x) { return !x.deleted && !x.store; }).length;
+    if (noneCount > 0) {
+      var none = document.createElement("button");
+      none.className = "chip" + (activeStore === "__none__" ? " active" : "");
+      none.textContent = "📭 ไม่ระบุร้าน";
+      none.onclick = function () { activeStore = (activeStore === "__none__" ? "" : "__none__"); render(); };
+      bar.appendChild(none);
+    }
     stores.forEach(function (s) {
       var c = document.createElement("button");
       c.className = "chip" + (activeStore === s ? " active" : "");
@@ -671,7 +711,7 @@
     var now = Date.now();
     items.forEach(function (x) { if (x.store === s) { x.store = ""; x.updatedAt = now; } });
     if (activeStore === s) activeStore = "";
-    save(); renderStores(); render(); push();
+    save(); renderStores(); render(true); push();
   }
 
   document.getElementById("storeAdd").onclick = addStore;
@@ -684,7 +724,7 @@
     document.getElementById("page-list").classList.toggle("active", pg === "list");
     document.getElementById("page-store").classList.toggle("active", pg === "store");
     if (pg === "store") renderStores();
-    else render();
+    else render(true);
   }
   document.getElementById("tabList").onclick = function () { switchPage("list"); };
   document.getElementById("tabStore").onclick = function () { switchPage("store"); };
