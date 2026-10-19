@@ -138,6 +138,15 @@
   }
   .item-store:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
   .item-store:hover { border-color: #c7cbd1; }
+  /* สรุปร้านที่ต้องไป (บนลิสต์) */
+  .triphint { padding: 0 12px; }
+  .triphint:empty { display: none; }
+  .triphint .trip-card { background: #f5f3ff; border: 1px solid #e0d9ff; border-radius: 12px; padding: 10px 12px; margin: 10px 0 2px; }
+  .triphint .trip-head { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 7px; display: flex; align-items: center; gap: 5px; }
+  .triphint .trip-stores { display: flex; flex-wrap: wrap; gap: 6px; }
+  .triphint .trip-chip { font-size: 12px; background: #fff; border: 1px solid #e0d9ff; border-radius: 999px; padding: 4px 10px; cursor: pointer; color: var(--ink); display: flex; align-items: center; gap: 5px; }
+  .triphint .trip-chip:active { transform: scale(.95); }
+  .triphint .trip-chip b { color: var(--accent); font-weight: 700; }
   /* Settings overlay */
   .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
   .overlay.open { display: flex; }
@@ -177,6 +186,7 @@
       <button id="add">+</button>
     </div>
     <div class="storefilter" id="storefilter"></div>
+    <div class="triphint" id="triphint"></div>
     <ul id="list"></ul>
     <footer>
       <span id="count">0 รายการ</span>
@@ -412,6 +422,7 @@
     if (!force && sig === lastSig) return;
     lastSig = sig;
     renderFilter();
+    renderTripHint();
     list.innerHTML = "";
     var visible = items.filter(function (x) {
       if (x.deleted) return false;
@@ -711,6 +722,41 @@
       c.onclick = function () { activeStore = (activeStore === s ? "" : s); render(); };
       bar.appendChild(c);
     });
+  }
+
+  // สรุป "ร้านที่ต้องไป" — ร้านที่มีของยังไม่ซื้อ + จำนวน (กดเพื่อ filter ไปร้านนั้น)
+  function renderTripHint() {
+    var box = document.getElementById("triphint");
+    if (!box) return;
+    // นับของยังไม่ซื้อ (ไม่ลบ) แยกตามร้าน + กลุ่มไม่ระบุร้าน
+    var byStore = {}; var noneCount = 0;
+    items.forEach(function (x) {
+      if (x.deleted || x.done) return;
+      if (isValidStore(x.store)) byStore[x.store] = (byStore[x.store] || 0) + 1;
+      else noneCount++;
+    });
+    var names = Object.keys(byStore).sort(function (a, b) { return a.localeCompare(b, "th"); });
+    if (!names.length && !noneCount) { box.innerHTML = ""; return; }  // ไม่มีของต้องซื้อ → ซ่อน
+
+    var card = document.createElement("div"); card.className = "trip-card";
+    var head = document.createElement("div"); head.className = "trip-head";
+    head.textContent = "🧭 ร้านที่ต้องไป (" + (names.length + (noneCount ? 1 : 0)) + ")";
+    card.appendChild(head);
+    var row = document.createElement("div"); row.className = "trip-stores";
+    names.forEach(function (s) {
+      var c = document.createElement("div"); c.className = "trip-chip";
+      c.innerHTML = "🏪 " + s + " <b>" + byStore[s] + "</b>";
+      c.onclick = function () { activeStore = s; render(true); };
+      row.appendChild(c);
+    });
+    if (noneCount) {
+      var c2 = document.createElement("div"); c2.className = "trip-chip";
+      c2.innerHTML = "📭 ไม่ระบุร้าน <b>" + noneCount + "</b>";
+      c2.onclick = function () { activeStore = "__none__"; render(true); };
+      row.appendChild(c2);
+    }
+    card.appendChild(row);
+    box.innerHTML = ""; box.appendChild(card);
   }
 
   // หน้าจัดการร้าน
