@@ -42,12 +42,19 @@ function _storesSheet() {
   return sh;
 }
 
+// กรองชื่อร้านที่ใช้ได้ — ตัดค่าขยะ เช่น Date object ("... GMT+...")
+function _validStore(s) {
+  if (!s || typeof s !== 'string') return false;
+  if (/GMT[+-]\d|Indochina Time|\d{4} \d\d:\d\d:\d\d/.test(s)) return false;
+  return true;
+}
+
 function _readStores() {
   var sh = _storesSheet();
   var rng = sh.getDataRange().getValues();
   var out = [];
   for (var i = 1; i < rng.length; i++) {
-    if (rng[i][0]) out.push(String(rng[i][0]));
+    if (rng[i][0] && _validStore(String(rng[i][0]))) out.push(String(rng[i][0]));
   }
   return out;
 }
@@ -63,7 +70,7 @@ function _writeStores(stores) {
 
 function _mergeStores(a, b) {
   var set = {}, out = [];
-  (a || []).concat(b || []).forEach(function (s) { if (s && !set[s]) { set[s] = 1; out.push(s); } });
+  (a || []).concat(b || []).forEach(function (s) { if (_validStore(s) && !set[s]) { set[s] = 1; out.push(s); } });
   return out;
 }
 
@@ -126,7 +133,15 @@ function doPost(e) {
     var merged = _merge(_readAll(), client);
     _writeAll(merged);
     var stores = _readStores();
-    if (body.stores) { stores = _mergeStores(stores, body.stores); _writeStores(stores); }
+    if (body.storesAuthoritative && body.stores) {
+      // client ส่ง list ที่เป็นความจริงมา (เช่น หลังลบร้าน) → เขียนทับตรง ๆ ไม่ union กัน (ลบได้จริง)
+      stores = body.stores.filter(_validStore);
+      _writeStores(stores);
+    } else if (body.stores) {
+      stores = _mergeStores(stores, body.stores); _writeStores(stores);
+    } else {
+      _writeStores(stores);  // เขียนทับด้วย list ที่กรองแล้ว — ล้างขยะเก่า
+    }
     // ส่ง tombstone กลับไปด้วย (ไม่ filter) — client จะได้ลบตาม
     return _json({ ok: true, items: merged, stores: stores });
   } catch (err) {

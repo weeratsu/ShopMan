@@ -260,9 +260,9 @@
   // กันเคสเปิดอีกเครื่องแล้ว item มี store แต่ stores (localStorage แยกเครื่อง) ยังไม่มี → dropdown จะได้มี option
   function allStores() {
     var set = {}; var out = [];
-    stores.forEach(function (s) { if (s && !set[s]) { set[s] = 1; out.push(s); } });
+    stores.forEach(function (s) { if (isValidStore(s) && !set[s]) { set[s] = 1; out.push(s); } });
     items.forEach(function (x) {
-      if (!x.deleted && x.store && !set[x.store]) { set[x.store] = 1; out.push(x.store); }
+      if (!x.deleted && isValidStore(x.store) && !set[x.store]) { set[x.store] = 1; out.push(x.store); }
     });
     // เรียงตามตัวอักษร (รองรับไทย/อังกฤษ) → แท็บร้าน/dropdown/chip เรียงตรงกันหมด
     return out.sort(function (a, b) { return a.localeCompare(b, "th"); });
@@ -343,6 +343,7 @@
   var syncing = false;      // กำลัง push อยู่ไหม (in-flight)
   var dirty = false;        // มีการเปลี่ยนแปลงค้างระหว่าง push
   var syncTimer = null;     // debounce timer
+  var storesAuth = false;   // ครั้งถัดไปส่ง stores แบบ authoritative (หลังลบร้าน → ให้ server เขียนทับ ไม่ union)
 
   // เรียกตัวนี้แทน push() ทุกครั้งที่มี mutation — รวม/หน่วง/กันซ้อนให้เอง
   function scheduleSync() {
@@ -359,10 +360,11 @@
     if (!pulledOnce && !hadLocal) { pull(); return; }
     syncing = true; dirty = false;
     setSync("⏳ กำลังซิงก์...");
+    var sendAuth = storesAuth; storesAuth = false;  // ส่ง authoritative รอบนี้ แล้วเคลียร์ flag
     fetchJson({
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ items: items, stores: stores })
+      body: JSON.stringify({ items: items, stores: stores, storesAuthoritative: sendAuth })
     }, 0, function (err, res) {
       syncing = false;
       if (!err && res && res.items) {
@@ -716,8 +718,10 @@
     var box = document.getElementById("storeList");
     var hint = document.getElementById("storeHint");
     // ดูดร้านที่ item ใช้จริงแต่ยังไม่มีใน stores เข้ามา (เช่น Watsons ที่ map ไว้ก่อนมีระบบ stores) + sync
-    var merged = allStores();
-    if (merged.length !== stores.length) { stores = merged; saveStores(); scheduleSync(); }
+    // เติมเฉพาะร้านที่ "item ใช้จริง" แต่ยังไม่มีใน stores (ไม่ดึงร้านที่ไม่มี item — กันร้านที่เพิ่งลบถูกดูดกลับ)
+    var used = {}; items.forEach(function (x) { if (!x.deleted && isValidStore(x.store)) used[x.store] = 1; });
+    var add = Object.keys(used).filter(function (s) { return stores.indexOf(s) === -1; });
+    if (add.length) { stores = stores.concat(add); saveStores(); scheduleSync(); }
     box.innerHTML = "";
     hint.style.display = stores.length ? "none" : "block";
     allStores().forEach(function (s, idx) {
@@ -742,10 +746,10 @@
   function addStore() {
     var inp2 = document.getElementById("storeInp");
     var name = inp2.value.trim();
-    if (!name) return;
+    if (!name || !isValidStore(name)) return;
     if (stores.indexOf(name) === -1) { stores.push(name); saveStores(); }
     inp2.value = "";
-    renderStores(); renderFilter(); inp2.focus();
+    renderStores(); renderFilter(); inp2.focus(); scheduleSync();
   }
 
   function removeStore(s) {
@@ -755,6 +759,7 @@
     var now = Date.now();
     items.forEach(function (x) { if (x.store === s) { x.store = ""; x.updatedAt = now; } });
     if (activeStore === s) activeStore = "";
+    storesAuth = true;  // ให้ server เขียนทับ stores ตรง ๆ (ลบจริง ไม่ union กลับ)
     save(); renderStores(); render(true); scheduleSync();
   }
 
@@ -814,6 +819,11 @@
 
   /* ---------- boot ---------- */
   pruneTombstones();
+  // ล้าง store ขยะ (Date object เก่า) ออกจาก list ที่โหลดมา
+  (function () {
+    var clean = stores.filter(isValidStore);
+    if (clean.length !== stores.length) { stores = clean; saveStores(); }
+  })();
   normalizeOrder();
   render();
   if (canSync()) pull();
