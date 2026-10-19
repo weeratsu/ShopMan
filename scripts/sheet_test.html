@@ -24,6 +24,7 @@
     <button onclick="doGet()">1) GET (อ่านทั้งหมด)</button>
     <button class="alt" onclick="doPush()">2) POST (ดัน 2 รายการทดสอบ)</button>
     <button onclick="doVerify()">3) GET ซ้ำ (ยืนยัน)</button>
+    <button class="alt" onclick="doOrderTest()">🔀 เทส order (sync ลำดับ)</button>
     <button class="warn" onclick="doCleanup()">ล้างรายการทดสอบ</button>
     <button onclick="doAll()">▶ รันทั้งหมด (1→2→3)</button>
   </div>
@@ -89,11 +90,44 @@ function doVerify() {
   }).catch(function (e) { log("✗ error: " + e, "err"); });
 }
 
+function doOrderTest() {
+  var now = Date.now();
+  // ดัน 3 รายการ order สลับ: c=3, a=1, b=2 → GET กลับมาต้องได้ a,b,c (เรียงตาม order)
+  var items = [
+    { id: "__synctest_c", text: "__synctest C", done: false, addedAt: now, doneAt: null, updatedAt: now, deleted: false, order: 3 },
+    { id: "__synctest_a", text: "__synctest A", done: false, addedAt: now, doneAt: null, updatedAt: now, deleted: false, order: 1 },
+    { id: "__synctest_b", text: "__synctest B", done: false, addedAt: now, doneAt: null, updatedAt: now, deleted: false, order: 2 }
+  ];
+  log("🔀 เทส order: ดัน C(3), A(1), B(2) …");
+  getJson({ method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ items: items }) })
+    .then(function (res) {
+      if (!res.ok) { log("✗ POST ไม่คืน JSON (Code.gs อาจยังไม่มีคอลัมน์ order / ยังไม่ deploy ใหม่)", "err"); log(res.raw.slice(0,400), "err"); return; }
+      log("✓ POST order แล้ว ดึงกลับมาเช็ก …", "ok");
+      return getJson({ method: "GET" }).then(function (g) {
+        if (!g.ok) { log("✗ GET ไม่คืน JSON", "err"); return; }
+        var t = g.data.items.filter(function (x) { return x.id.indexOf("__synctest_") === 0; });
+        var hasOrder = t.every(function (x) { return typeof x.order !== "undefined" && x.order !== null; });
+        if (!hasOrder) {
+          log("⚠ รายการที่ได้กลับมา 'ไม่มี' field order — แปลว่า Code.gs ที่ deploy ยังไม่มีคอลัมน์ order", "err");
+          log("   → ต้อง deploy Code.gs เวอร์ชันล่าสุด (Manage deployments → Edit → New version)", "err");
+        } else {
+          var sorted = t.slice().sort(function (a, b) { return a.order - b.order; });
+          var seq = sorted.map(function (x) { return x.text.replace("__synctest ", "") + "(" + x.order + ")"; }).join(" → ");
+          var ok = sorted[0].id === "__synctest_a" && sorted[1].id === "__synctest_b" && sorted[2].id === "__synctest_c";
+          if (ok) log("✓ order sync ถูกต้อง! ลำดับที่ได้: " + seq + " — ลำดับจะ sync ข้ามเครื่อง 🎉", "ok");
+          else log("⚠ order กลับมาไม่ตรง: " + seq, "err");
+        }
+        log(JSON.stringify(t, null, 2));
+      });
+    }).catch(function (e) { log("✗ error: " + e, "err"); });
+}
+
 function doCleanup() {
   var now = Date.now();
   var items = [
     { id: "__synctest_a", text: "x", done: false, addedAt: now, doneAt: null, updatedAt: now + 1, deleted: true },
-    { id: "__synctest_b", text: "x", done: false, addedAt: now, doneAt: null, updatedAt: now + 1, deleted: true }
+    { id: "__synctest_b", text: "x", done: false, addedAt: now, doneAt: null, updatedAt: now + 1, deleted: true },
+    { id: "__synctest_c", text: "x", done: false, addedAt: now, doneAt: null, updatedAt: now + 1, deleted: true }
   ];
   log("ล้างรายการทดสอบ (ส่ง tombstone) …");
   return getJson({ method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ items: items }) })

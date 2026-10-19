@@ -98,6 +98,47 @@
     padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 13px;
   }
   footer button:active { background: #fee2e2; color: var(--danger); border-color: var(--danger); }
+  /* Tab bar (ลิสต์ / ร้านค้า) */
+  .tabbar { display: flex; gap: 4px; padding: 6px; border-bottom: 1px solid var(--line); position: sticky; top: 71px; background: var(--card); z-index: 9; }
+  .tabbar button { flex: 1; padding: 10px; border: none; background: none; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; border-radius: 10px; transition: .15s; }
+  .tabbar button.active { color: #fff; background: var(--accent); }
+  .tabbar button:not(.active):active { background: #eef2ff; }
+  .page { display: none; flex-direction: column; flex: 1; }
+  .page.active { display: flex; }
+  /* Store filter chips (หน้าลิสต์) */
+  .storefilter { display: flex; gap: 7px; padding: 11px 12px; overflow-x: auto; border-bottom: 1px solid var(--line); background: var(--card); scrollbar-width: none; }
+  .storefilter::-webkit-scrollbar { display: none; }
+  .chip { flex: 0 0 auto; font-size: 13px; font-weight: 500; padding: 7px 14px; border: 1.5px solid var(--line); border-radius: 999px; background: #fff; color: var(--muted); cursor: pointer; white-space: nowrap; transition: .15s; }
+  .chip:active { transform: scale(.95); }
+  .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 2px 8px rgba(79,70,229,.25); }
+  .meta .store-tag { color: var(--accent); font-weight: 600; }
+  /* Store management page */
+  .store-add { display: flex; gap: 8px; padding: 14px 12px; background: #fafbff; border-bottom: 1px solid var(--line); }
+  .store-add input { flex: 1; font-size: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; outline: none; background: #f9fafb; }
+  .store-add input:focus { border-color: var(--accent); background: #fff; }
+  .store-add button { font-size: 22px; width: 50px; border: none; border-radius: 12px; background: var(--accent); color: #fff; cursor: pointer; font-weight: 700; }
+  .store-add button:active { transform: scale(.95); }
+  #storeList { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .store-li { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.04); transition: .15s; }
+  .store-li:active { transform: scale(.995); }
+  .store-ic { width: 40px; height: 40px; min-width: 40px; border-radius: 11px; background: linear-gradient(135deg,#6366f1,#4f46e5); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 19px; }
+  .store-li .name { flex: 1; font-size: 16px; font-weight: 600; }
+  .store-li .cnt { font-size: 12px; font-weight: 500; color: var(--accent); background: #eef2ff; padding: 4px 11px; border-radius: 999px; }
+  .store-li .del { background: none; border: none; font-size: 19px; color: var(--muted); cursor: pointer; padding: 6px 8px; border-radius: 9px; transition: .15s; }
+  .store-li .del:active { background: #fee2e2; color: var(--danger); }
+  .store-li .del:active { background: #fee2e2; color: var(--danger); }
+  /* custom select (minimal, เข้าธีม) — ใช้ลูกศร ▾ เองผ่าน background svg */
+  .item-store {
+    font-size: 12px; color: var(--ink); margin-top: 5px; max-width: 180px;
+    padding: 5px 28px 5px 10px; border: 1.5px solid var(--line); border-radius: 8px;
+    background-color: #fff; cursor: pointer; touch-action: auto;
+    -webkit-appearance: none; -moz-appearance: none; appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236366f1' stroke-width='3' stroke-linecap='round'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e");
+    background-repeat: no-repeat; background-position: right 9px center; background-size: 12px;
+    transition: .15s;
+  }
+  .item-store:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
+  .item-store:hover { border-color: #c7cbd1; }
   /* Settings overlay */
   .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
   .overlay.open { display: flex; }
@@ -125,15 +166,34 @@
     </div>
     <button class="gear" id="gear" title="ตั้งค่า">⚙</button>
   </header>
-  <div class="inputbar">
-    <input id="inp" type="text" placeholder="เช่น นมสด, ไข่ไก่, น้ำยาล้างจาน..." autocomplete="off">
-    <button id="add">+</button>
+  <div class="tabbar">
+    <button id="tabList" class="active" data-page="list">🛒 ลิสต์</button>
+    <button id="tabStore" data-page="store">🏪 ร้านค้า</button>
   </div>
-  <ul id="list"></ul>
-  <footer>
-    <span id="count">0 รายการ</span>
-    <button id="clearDone">ลบที่ซื้อแล้ว</button>
-  </footer>
+
+  <!-- หน้า: ลิสต์ -->
+  <div class="page active" id="page-list">
+    <div class="inputbar">
+      <input id="inp" type="text" placeholder="เช่น นมสด, ไข่ไก่, น้ำยาล้างจาน..." autocomplete="off">
+      <button id="add">+</button>
+    </div>
+    <div class="storefilter" id="storefilter"></div>
+    <ul id="list"></ul>
+    <footer>
+      <span id="count">0 รายการ</span>
+      <button id="clearDone">ลบที่ซื้อแล้ว</button>
+    </footer>
+  </div>
+
+  <!-- หน้า: ร้านค้า -->
+  <div class="page" id="page-store">
+    <div class="store-add">
+      <input id="storeInp" type="text" placeholder="ชื่อร้าน เช่น Makro, Lotus, 7-11..." autocomplete="off">
+      <button id="storeAdd">+</button>
+    </div>
+    <div id="storeList"></div>
+    <div class="empty" id="storeHint" style="display:none;">ยังไม่มีร้าน<br>เพิ่มร้านด้านบน แล้ว map ของในหน้าลิสต์</div>
+  </div>
 </div>
 
 <!-- Settings -->
@@ -159,6 +219,10 @@
   "use strict";
   var KEY = "shoppinglist.items.v1";
   var CFG = "shoppinglist.cfg.v1";
+  var STKEY = "shoppinglist.stores.v1";   // รายชื่อร้าน (array ของ string)
+  var activeStore = "";                     // ร้านที่ filter อยู่ ("" = ทั้งหมด)
+  var selectOpen = false;                   // dropdown เลือกร้านเปิดอยู่ไหม
+  var renderDeferred = false;               // มี render ที่ถูกเลื่อนไว้ระหว่าง dropdown เปิด
   // guard กัน empty-overwrite:
   //  pulledOnce = ดึงจาก Sheet สำเร็จอย่างน้อย 1 ครั้งในรอบนี้แล้วหรือยัง
   //  hadLocal   = ตอนเปิดแอป มีข้อมูลจริงในเครื่องอยู่ก่อนไหม
@@ -167,7 +231,14 @@
   var inp  = document.getElementById("inp");
   var items = load();
   var cfg = loadCfg();
+  var stores = loadStores();
   var hadLocal = items.filter(function (x) { return !x.deleted; }).length > 0;
+
+  function loadStores() {
+    try { return JSON.parse(localStorage.getItem(STKEY)) || []; }
+    catch (e) { return []; }
+  }
+  function saveStores() { localStorage.setItem(STKEY, JSON.stringify(stores)); }
 
   function load() {
     try { return JSON.parse(localStorage.getItem(KEY)) || []; }
@@ -271,8 +342,15 @@
 
   /* ---------- render ---------- */
   function render() {
+    // ถ้า dropdown เลือกร้านเปิดอยู่ อย่าเพิ่ง re-render (จะไปปิด dropdown) — เลื่อนไว้ทำหลัง blur
+    if (selectOpen) { renderDeferred = true; return; }
+    renderFilter();
     list.innerHTML = "";
-    var visible = items.filter(function (x) { return !x.deleted; });
+    var visible = items.filter(function (x) {
+      if (x.deleted) return false;
+      if (activeStore && (x.store || "") !== activeStore) return false; // filter ตามร้าน
+      return true;
+    });
     if (!visible.length) {
       var e = document.createElement("div");
       e.className = "empty";
@@ -309,11 +387,35 @@
 
         var meta = document.createElement("div");
         meta.className = "meta";
-        var html = "➕ เพิ่ม: " + fmt(it.addedAt);
-        if (it.done && it.doneAt) html += "<br><span class=\"buy\">✓ ซื้อ: " + fmt(it.doneAt) + "</span>";
-        meta.innerHTML = html;
+        var mhtml = "➕ เพิ่ม: " + fmt(it.addedAt);
+        if (it.store) mhtml += "  <span class=\"store-tag\">🏪 " + it.store + "</span>";
+        if (it.done && it.doneAt) mhtml += "<br><span class=\"buy\">✓ ซื้อ: " + fmt(it.doneAt) + "</span>";
+        meta.innerHTML = mhtml;
 
-        body.appendChild(txt); body.appendChild(meta);
+        // dropdown เลือกร้านของ item นี้
+        var sel = document.createElement("select");
+        sel.className = "item-store";
+        var optNone = document.createElement("option");
+        optNone.value = ""; optNone.textContent = "— ไม่ระบุร้าน —";
+        sel.appendChild(optNone);
+        stores.forEach(function (s) {
+          var o = document.createElement("option");
+          o.value = s; o.textContent = s;
+          if ((it.store || "") === s) o.selected = true;
+          sel.appendChild(o);
+        });
+        sel.onchange = function () { setStore(it, sel.value); };
+        // กัน pointerdown บน dropdown ไม่ให้ไป trigger drag / ปิด dropdown ตัวเอง
+        sel.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+        sel.addEventListener("click", function (e) { e.stopPropagation(); });
+        // ระหว่าง dropdown เปิดอยู่ ห้าม render ทับ (กัน sync ย้อนกลับมาปิด dropdown)
+        sel.addEventListener("focus", function () { selectOpen = true; });
+        sel.addEventListener("blur", function () {
+          selectOpen = false;
+          if (renderDeferred) { renderDeferred = false; render(); }
+        });
+
+        body.appendChild(txt); body.appendChild(meta); body.appendChild(sel);
 
         var del = document.createElement("button");
         del.className = "del";
@@ -484,7 +586,7 @@
     if (!t) return;
     var now = Date.now();
     var maxOrder = items.reduce(function (m, x) { return Math.max(m, x.order == null ? 0 : x.order); }, 0);
-    items.push({ id: now + "" + Math.random().toString(36).slice(2, 6), text: t, done: false, addedAt: now, doneAt: null, updatedAt: now, deleted: false, order: maxOrder + 1 });
+    items.push({ id: now + "" + Math.random().toString(36).slice(2, 6), text: t, done: false, addedAt: now, doneAt: null, updatedAt: now, deleted: false, order: maxOrder + 1, store: "" });
     inp.value = "";
     save(); render(); inp.focus(); push();
   }
@@ -496,6 +598,96 @@
     items.forEach(function (x) { if (x.done && !x.deleted) { x.deleted = true; x.updatedAt = now; } });
     save(); render(); push();
   };
+
+  /* ---------- store (ร้านค้า) ---------- */
+  function setStore(it, storeName) {
+    it.store = storeName;
+    it.updatedAt = Date.now();
+    save();
+    // ไม่ render ทันที — ปล่อยให้ blur ของ select เป็นตัว render (กัน dropdown ถูกปิดกลางคัน)
+    renderDeferred = true;
+    push();
+  }
+
+  // แถบ filter ร้าน (หน้าลิสต์) — ปุ่ม "ทั้งหมด" + ปุ่มรายร้าน
+  function renderFilter() {
+    var bar = document.getElementById("storefilter");
+    if (!bar) return;
+    if (!stores.length) { bar.style.display = "none"; return; }
+    bar.style.display = "flex";
+    bar.innerHTML = "";
+    var all = document.createElement("button");
+    all.className = "chip" + (activeStore === "" ? " active" : "");
+    all.textContent = "ทั้งหมด";
+    all.onclick = function () { activeStore = ""; render(); };
+    bar.appendChild(all);
+    stores.forEach(function (s) {
+      var c = document.createElement("button");
+      c.className = "chip" + (activeStore === s ? " active" : "");
+      c.textContent = "🏪 " + s;
+      c.onclick = function () { activeStore = (activeStore === s ? "" : s); render(); };
+      bar.appendChild(c);
+    });
+  }
+
+  // หน้าจัดการร้าน
+  function renderStores() {
+    var box = document.getElementById("storeList");
+    var hint = document.getElementById("storeHint");
+    box.innerHTML = "";
+    hint.style.display = stores.length ? "none" : "block";
+    stores.forEach(function (s, idx) {
+      var row = document.createElement("div");
+      row.className = "store-li";
+      var ic = document.createElement("div");
+      ic.className = "store-ic"; ic.textContent = "🏪";
+      var name = document.createElement("div");
+      name.className = "name"; name.textContent = s;
+      var cnt = document.createElement("span");
+      cnt.className = "cnt";
+      var n = items.filter(function (x) { return !x.deleted && x.store === s; }).length;
+      cnt.textContent = n + " รายการ";
+      var del = document.createElement("button");
+      del.className = "del"; del.textContent = "✕";
+      del.onclick = function () { removeStore(s); };
+      row.appendChild(ic); row.appendChild(name); row.appendChild(cnt); row.appendChild(del);
+      box.appendChild(row);
+    });
+  }
+
+  function addStore() {
+    var inp2 = document.getElementById("storeInp");
+    var name = inp2.value.trim();
+    if (!name) return;
+    if (stores.indexOf(name) === -1) { stores.push(name); saveStores(); }
+    inp2.value = "";
+    renderStores(); renderFilter(); inp2.focus();
+  }
+
+  function removeStore(s) {
+    stores = stores.filter(function (x) { return x !== s; });
+    saveStores();
+    // ปลด map ของที่ชี้ร้านนี้ออก (set store="" + updatedAt) ให้ sync ด้วย
+    var now = Date.now();
+    items.forEach(function (x) { if (x.store === s) { x.store = ""; x.updatedAt = now; } });
+    if (activeStore === s) activeStore = "";
+    save(); renderStores(); render(); push();
+  }
+
+  document.getElementById("storeAdd").onclick = addStore;
+  document.getElementById("storeInp").addEventListener("keydown", function (e) { if (e.key === "Enter") addStore(); });
+
+  /* ---------- tab switch ---------- */
+  function switchPage(pg) {
+    document.getElementById("tabList").classList.toggle("active", pg === "list");
+    document.getElementById("tabStore").classList.toggle("active", pg === "store");
+    document.getElementById("page-list").classList.toggle("active", pg === "list");
+    document.getElementById("page-store").classList.toggle("active", pg === "store");
+    if (pg === "store") renderStores();
+    else render();
+  }
+  document.getElementById("tabList").onclick = function () { switchPage("list"); };
+  document.getElementById("tabStore").onclick = function () { switchPage("store"); };
 
   /* ---------- settings ---------- */
   var overlay = document.getElementById("overlay");

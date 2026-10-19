@@ -13,13 +13,13 @@
  *   3. ก๊อป Web app URL มาใส่ในแอป (หน้า Settings ของ ShopMan)
  *
  * Data model: 1 Sheet tab ชื่อ "items" — แถวแรกเป็น header
- *   id | text | done | addedAt | doneAt | updatedAt | deleted | order
+ *   id | text | done | addedAt | doneAt | updatedAt | deleted | order | store
  */
 
 // ⬇️ ใส่ Spreadsheet ID ของ Sheet ที่จะใช้เก็บข้อมูล (ดูจาก URL ของ Sheet)
 var SHEET_ID = '1SLnmo2QOyX7VfU7pd4kylkK_GQwvE5oM3JYObV9kjK0';
 var SHEET_NAME = 'items';
-var HEADERS = ['id', 'text', 'done', 'addedAt', 'doneAt', 'updatedAt', 'deleted', 'order'];
+var HEADERS = ['id', 'text', 'done', 'addedAt', 'doneAt', 'updatedAt', 'deleted', 'order', 'store'];
 
 function _sheet() {
   var ss = SpreadsheetApp.openById(SHEET_ID);
@@ -47,7 +47,8 @@ function _readAll() {
       doneAt: Number(row[4]) || null,
       updatedAt: Number(row[5]) || 0,
       deleted: row[6] === true || row[6] === 'true' || row[6] === 'TRUE',
-      order: Number(row[7]) || 0
+      order: Number(row[7]) || 0,
+      store: row[8] != null ? String(row[8]) : ''
     });
   }
   return out;
@@ -59,7 +60,7 @@ function _writeAll(items) {
   sh.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
   if (!items.length) return;
   var rows = items.map(function (it) {
-    return [it.id, it.text, !!it.done, it.addedAt || '', it.doneAt || '', it.updatedAt || 0, !!it.deleted, it.order || 0];
+    return [it.id, it.text, !!it.done, it.addedAt || '', it.doneAt || '', it.updatedAt || 0, !!it.deleted, it.order || 0, it.store || ''];
   });
   sh.getRange(2, 1, rows.length, HEADERS.length).setValues(rows);
 }
