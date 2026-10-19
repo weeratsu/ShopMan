@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShopMan — Sync Test</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", "Noto Sans Thai", sans-serif; max-width: 760px; margin: 20px auto; padding: 0 16px; color: #1f2937; }
+  h1 { font-size: 20px; }
+  .url { width: 100%; font-size: 13px; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; margin: 8px 0 14px; }
+  button { font-size: 14px; padding: 10px 14px; border: none; border-radius: 8px; background: #4f46e5; color: #fff; cursor: pointer; margin: 0 6px 8px 0; }
+  button.alt { background: #10b981; }
+  button.warn { background: #ef4444; }
+  pre { background: #0b1021; color: #d1fae5; padding: 14px; border-radius: 10px; white-space: pre-wrap; word-break: break-word; font-size: 12.5px; line-height: 1.55; max-height: 60vh; overflow: auto; }
+  .ok { color: #34d399; } .err { color: #f87171; } .dim { color: #9ca3af; }
+</style>
+</head>
+<body>
+  <h1>🛒 ShopMan — Sync Test</h1>
+  <p class="dim">ทดสอบ backend (Apps Script) โดยตรง — ยิง GET/POST แล้วดูผล ไม่ยุ่งกับข้อมูลจริงในแอป (ใช้ id ขึ้นต้น <code>__synctest</code>)</p>
+  <input class="url" id="url" placeholder="วาง Web App URL (ลงท้าย /exec)"
+    value="https://script.google.com/macros/s/AKfycbwXmREcJpg4rMLUta7lAJuEJj1wNcAzRxETD7JuCTeRXn6xNkKL_SuksCXKvFWyOmke/exec">
+  <div>
+    <button onclick="doGet()">1) GET (อ่านทั้งหมด)</button>
+    <button class="alt" onclick="doPush()">2) POST (ดัน 2 รายการทดสอบ)</button>
+    <button onclick="doVerify()">3) GET ซ้ำ (ยืนยัน)</button>
+    <button class="warn" onclick="doCleanup()">ล้างรายการทดสอบ</button>
+    <button onclick="doAll()">▶ รันทั้งหมด (1→2→3)</button>
+  </div>
+  <pre id="out">พร้อมทดสอบ…
+</pre>
+
+<script>
+function u() { return document.getElementById("url").value.trim(); }
+function log(msg, cls) {
+  var pre = document.getElementById("out");
+  var t = new Date().toLocaleTimeString();
+  pre.innerHTML += '<span class="dim">[' + t + ']</span> ' + (cls ? '<span class="'+cls+'">'+msg+'</span>' : msg) + "\n";
+  pre.scrollTop = pre.scrollHeight;
+}
+function clearLog() { document.getElementById("out").innerHTML = ""; }
+
+function getJson(opts) {
+  return fetch(u(), opts).then(function (r) { return r.text(); }).then(function (txt) {
+    try { return { ok: true, data: JSON.parse(txt) }; }
+    catch (e) { return { ok: false, raw: txt }; }
+  });
+}
+
+function doGet() {
+  log("GET …");
+  return getJson({ method: "GET" }).then(function (res) {
+    if (res.ok) {
+      log("✓ ได้ JSON: ok=" + res.data.ok + ", items=" + (res.data.items ? res.data.items.length : "?"), "ok");
+      log(JSON.stringify(res.data, null, 2));
+    } else {
+      log("✗ ไม่ใช่ JSON (อาจเป็นหน้า login/error หรือ cold-start):", "err");
+      log(res.raw.slice(0, 500), "err");
+    }
+    return res;
+  }).catch(function (e) { log("✗ error: " + e, "err"); });
+}
+
+function doPush() {
+  var now = Date.now();
+  var items = [
+    { id: "__synctest_a", text: "__synctest นมสด", done: false, addedAt: now, doneAt: null, updatedAt: now, deleted: false },
+    { id: "__synctest_b", text: "__synctest ไข่ไก่", done: true, addedAt: now, doneAt: now, updatedAt: now, deleted: false }
+  ];
+  log("POST ดัน 2 รายการทดสอบ …");
+  return getJson({ method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ items: items }) })
+    .then(function (res) {
+      if (res.ok) { log("✓ POST สำเร็จ: items=" + (res.data.items ? res.data.items.length : "?"), "ok"); log(JSON.stringify(res.data, null, 2)); }
+      else { log("✗ POST ไม่คืน JSON:", "err"); log(res.raw.slice(0, 500), "err"); }
+      return res;
+    }).catch(function (e) { log("✗ error: " + e, "err"); });
+}
+
+function doVerify() {
+  log("GET ซ้ำเพื่อยืนยันว่าบันทึกจริง …");
+  return getJson({ method: "GET" }).then(function (res) {
+    if (res.ok && res.data.items) {
+      var found = res.data.items.filter(function (x) { return x.id === "__synctest_a" || x.id === "__synctest_b"; });
+      if (found.length === 2) log("✓ ยืนยัน: เจอรายการทดสอบครบ 2 รายการใน Sheet — sync ใช้ได้ 🎉", "ok");
+      else log("⚠ เจอรายการทดสอบ " + found.length + "/2 — ตรวจ merge logic", "err");
+      log(JSON.stringify(res.data.items, null, 2));
+    } else { log("✗ ไม่คืน JSON", "err"); }
+    return res;
+  }).catch(function (e) { log("✗ error: " + e, "err"); });
+}
+
+function doCleanup() {
+  var now = Date.now();
+  var items = [
+    { id: "__synctest_a", text: "x", done: false, addedAt: now, doneAt: null, updatedAt: now + 1, deleted: true },
+    { id: "__synctest_b", text: "x", done: false, addedAt: now, doneAt: null, updatedAt: now + 1, deleted: true }
+  ];
+  log("ล้างรายการทดสอบ (ส่ง tombstone) …");
+  return getJson({ method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ items: items }) })
+    .then(function (res) {
+      if (res.ok) log("✓ ล้างแล้ว — รายการทดสอบถูกลบจาก Sheet", "ok");
+      else log("✗ ล้างไม่สำเร็จ", "err");
+    }).catch(function (e) { log("✗ error: " + e, "err"); });
+}
+
+function doAll() {
+  clearLog();
+  log("▶ รันทดสอบทั้งหมด…", "dim");
+  doGet().then(function(){ return doPush(); }).then(function(){ return doVerify(); });
+}
+</script>
+</body>
+</html>

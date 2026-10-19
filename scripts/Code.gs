@@ -3,21 +3,26 @@
  * เก็บรายการ shopping list ลง Google Sheet แล้วให้ทุกเครื่อง (คอม/มือถือ) sync กัน
  *
  * วิธี deploy:
- *   1. เปิด https://script.google.com → New project → วางโค้ดนี้
+ *   1. สร้าง Google Sheet เปล่า 1 ไฟล์ → ก๊อป Spreadsheet ID จาก URL
+ *      (ส่วนระหว่าง /d/ กับ /edit  เช่น docs.google.com/spreadsheets/d/<ID>/edit)
+ *      แล้วเอามาใส่ใน SHEET_ID ด้านล่าง
+ *   2. เปิด https://script.google.com → New project → วางโค้ดนี้
  *   2. Deploy → New deployment → Type: Web app
  *      - Execute as: Me
  *      - Who has access: Anyone
  *   3. ก๊อป Web app URL มาใส่ในแอป (หน้า Settings ของ ShopMan)
  *
  * Data model: 1 Sheet tab ชื่อ "items" — แถวแรกเป็น header
- *   id | text | done | addedAt | doneAt | updatedAt | deleted
+ *   id | text | done | addedAt | doneAt | updatedAt | deleted | order
  */
 
+// ⬇️ ใส่ Spreadsheet ID ของ Sheet ที่จะใช้เก็บข้อมูล (ดูจาก URL ของ Sheet)
+var SHEET_ID = '1SLnmo2QOyX7VfU7pd4kylkK_GQwvE5oM3JYObV9kjK0';
 var SHEET_NAME = 'items';
-var HEADERS = ['id', 'text', 'done', 'addedAt', 'doneAt', 'updatedAt', 'deleted'];
+var HEADERS = ['id', 'text', 'done', 'addedAt', 'doneAt', 'updatedAt', 'deleted', 'order'];
 
 function _sheet() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = SpreadsheetApp.openById(SHEET_ID);
   var sh = ss.getSheetByName(SHEET_NAME);
   if (!sh) {
     sh = ss.insertSheet(SHEET_NAME);
@@ -41,7 +46,8 @@ function _readAll() {
       addedAt: Number(row[3]) || null,
       doneAt: Number(row[4]) || null,
       updatedAt: Number(row[5]) || 0,
-      deleted: row[6] === true || row[6] === 'true' || row[6] === 'TRUE'
+      deleted: row[6] === true || row[6] === 'true' || row[6] === 'TRUE',
+      order: Number(row[7]) || 0
     });
   }
   return out;
@@ -53,7 +59,7 @@ function _writeAll(items) {
   sh.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
   if (!items.length) return;
   var rows = items.map(function (it) {
-    return [it.id, it.text, !!it.done, it.addedAt || '', it.doneAt || '', it.updatedAt || 0, !!it.deleted];
+    return [it.id, it.text, !!it.done, it.addedAt || '', it.doneAt || '', it.updatedAt || 0, !!it.deleted, it.order || 0];
   });
   sh.getRange(2, 1, rows.length, HEADERS.length).setValues(rows);
 }
