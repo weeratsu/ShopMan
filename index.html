@@ -244,9 +244,16 @@
   function mergeStores(serverStores) {
     var set = {}; var out = [];
     (serverStores || []).concat(stores).forEach(function (s) {
-      if (s && !set[s]) { set[s] = 1; out.push(s); }
+      if (isValidStore(s) && !set[s]) { set[s] = 1; out.push(s); }
     });
     return out;
+  }
+
+  // กรองชื่อร้านที่ใช้ได้ — ตัดค่าขยะ เช่น Date object ที่หลุดเข้ามา ("... GMT+...")
+  function isValidStore(s) {
+    if (!s || typeof s !== "string") return false;
+    if (/GMT[+-]\d|Indochina Time|\d{4} \d\d:\d\d:\d\d/.test(s)) return false; // ดูเป็น Date
+    return true;
   }
 
   // รายชื่อร้านทั้งหมด = union(stores ที่ตั้งไว้, ร้านที่ item ใช้จริง)
