@@ -257,7 +257,8 @@
     items.forEach(function (x) {
       if (!x.deleted && x.store && !set[x.store]) { set[x.store] = 1; out.push(x.store); }
     });
-    return out;
+    // เรียงตามตัวอักษร (รองรับไทย/อังกฤษ) → แท็บร้าน/dropdown/chip เรียงตรงกันหมด
+    return out.sort(function (a, b) { return a.localeCompare(b, "th"); });
   }
 
   function load() {
@@ -696,9 +697,12 @@
   function renderStores() {
     var box = document.getElementById("storeList");
     var hint = document.getElementById("storeHint");
+    // ดูดร้านที่ item ใช้จริงแต่ยังไม่มีใน stores เข้ามา (เช่น Watsons ที่ map ไว้ก่อนมีระบบ stores) + sync
+    var merged = allStores();
+    if (merged.length !== stores.length) { stores = merged; saveStores(); push(); }
     box.innerHTML = "";
     hint.style.display = stores.length ? "none" : "block";
-    stores.forEach(function (s, idx) {
+    allStores().forEach(function (s, idx) {
       var row = document.createElement("div");
       row.className = "store-li";
       var ic = document.createElement("div");

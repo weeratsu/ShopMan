@@ -25,8 +25,10 @@
     <button class="alt" onclick="doPush()">2) POST (ดัน 2 รายการทดสอบ)</button>
     <button onclick="doVerify()">3) GET ซ้ำ (ยืนยัน)</button>
     <button class="alt" onclick="doOrderTest()">🔀 เทส order (sync ลำดับ)</button>
+    <button class="alt" onclick="doStoreTest()">🏪 เทส store (sync ร้าน)</button>
     <button class="warn" onclick="doCleanup()">ล้างรายการทดสอบ</button>
     <button onclick="doAll()">▶ รันทั้งหมด (1→2→3)</button>
+    <button id="copyBtn" onclick="copyLog()">📋 Copy log</button>
   </div>
   <pre id="out">พร้อมทดสอบ…
 </pre>
@@ -40,6 +42,27 @@ function log(msg, cls) {
   pre.scrollTop = pre.scrollHeight;
 }
 function clearLog() { document.getElementById("out").innerHTML = ""; }
+
+// ก๊อป log ทั้งหมด (เป็น plain text) ไป clipboard
+function copyLog() {
+  var txt = document.getElementById("out").innerText;
+  function done(ok) {
+    var b = document.getElementById("copyBtn");
+    if (!b) return;
+    var old = b.textContent;
+    b.textContent = ok ? "✓ ก๊อปแล้ว" : "✗ ก๊อปไม่ได้";
+    setTimeout(function () { b.textContent = old; }, 1500);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(function () { done(true); }, function () { fallback(); });
+  } else { fallback(); }
+  function fallback() {
+    var ta = document.createElement("textarea");
+    ta.value = txt; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); done(true); } catch (e) { done(false); }
+    document.body.removeChild(ta);
+  }
+}
 
 function getJson(opts) {
   return fetch(u(), opts).then(function (r) { return r.text(); }).then(function (txt) {
@@ -118,6 +141,30 @@ function doOrderTest() {
           else log("⚠ order กลับมาไม่ตรง: " + seq, "err");
         }
         log(JSON.stringify(t, null, 2));
+      });
+    }).catch(function (e) { log("✗ error: " + e, "err"); });
+}
+
+function doStoreTest() {
+  var now = Date.now();
+  var items = [
+    { id: "__synctest_a", text: "__synctest A", done: false, addedAt: now, doneAt: null, updatedAt: now, deleted: false, order: 1, store: "ร้านทดสอบ" }
+  ];
+  log("🏪 เทส store: ดันรายการ store='ร้านทดสอบ' + stores=['ร้านทดสอบ'] …");
+  getJson({ method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ items: items, stores: ["ร้านทดสอบ"] }) })
+    .then(function (res) {
+      if (!res.ok) { log("✗ POST ไม่คืน JSON (ยังไม่ deploy Code.gs ใหม่?)", "err"); log(res.raw.slice(0,400), "err"); return; }
+      log("✓ POST แล้ว ดึงกลับมาเช็ก …", "ok");
+      return getJson({ method: "GET" }).then(function (g) {
+        if (!g.ok) { log("✗ GET ไม่คืน JSON", "err"); return; }
+        var it = (g.data.items || []).filter(function (x) { return x.id === "__synctest_a"; })[0];
+        var storeOk = it && it.store === "ร้านทดสอบ";
+        var storesOk = (g.data.stores || []).indexOf("ร้านทดสอบ") >= 0;
+        if (storeOk) log("✓ item.store sync ถูก: '" + it.store + "'", "ok");
+        else log("⚠ item.store ไม่กลับมา (คอลัมน์ store ยังไม่มีใน Sheet / ยังไม่ deploy)", "err");
+        if (storesOk) log("✓ stores list sync ถูก: มี 'ร้านทดสอบ' ใน stores — ร้านจะ sync ข้ามเครื่อง 🎉", "ok");
+        else log("⚠ stores list ไม่กลับมา (tab 'stores' ยังไม่มี / ยังไม่ deploy Code.gs ใหม่)", "err");
+        log("stores from server: " + JSON.stringify(g.data.stores || "ไม่มี field stores"));
       });
     }).catch(function (e) { log("✗ error: " + e, "err"); });
 }
