@@ -20,6 +20,7 @@
 var SHEET_ID = '1SLnmo2QOyX7VfU7pd4kylkK_GQwvE5oM3JYObV9kjK0';
 var SHEET_NAME = 'items';
 var HEADERS = ['id', 'text', 'done', 'addedAt', 'doneAt', 'updatedAt', 'deleted', 'order', 'store'];
+var STORES_SHEET = 'stores';   // tab แยกเก็บรายชื่อร้าน (คอลัมน์เดียว)
 
 function _sheet() {
   var ss = SpreadsheetApp.openById(SHEET_ID);
@@ -29,6 +30,41 @@ function _sheet() {
     sh.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
   }
   return sh;
+}
+
+function _storesSheet() {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var sh = ss.getSheetByName(STORES_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(STORES_SHEET);
+    sh.getRange(1, 1).setValue('store');
+  }
+  return sh;
+}
+
+function _readStores() {
+  var sh = _storesSheet();
+  var rng = sh.getDataRange().getValues();
+  var out = [];
+  for (var i = 1; i < rng.length; i++) {
+    if (rng[i][0]) out.push(String(rng[i][0]));
+  }
+  return out;
+}
+
+function _writeStores(stores) {
+  var sh = _storesSheet();
+  sh.clear();
+  sh.getRange(1, 1).setValue('store');
+  if (!stores || !stores.length) return;
+  var rows = stores.map(function (s) { return [s]; });
+  sh.getRange(2, 1, rows.length, 1).setValues(rows);
+}
+
+function _mergeStores(a, b) {
+  var set = {}, out = [];
+  (a || []).concat(b || []).forEach(function (s) { if (s && !set[s]) { set[s] = 1; out.push(s); } });
+  return out;
 }
 
 function _readAll() {
@@ -77,7 +113,7 @@ function _merge(serverItems, clientItems) {
 }
 
 function doGet() {
-  return _json({ ok: true, items: _readAll().filter(function (x) { return !x.deleted; }) });
+  return _json({ ok: true, items: _readAll().filter(function (x) { return !x.deleted; }), stores: _readStores() });
 }
 
 function doPost(e) {
@@ -88,7 +124,9 @@ function doPost(e) {
     var client = body.items || [];
     var merged = _merge(_readAll(), client);
     _writeAll(merged);
-    return _json({ ok: true, items: merged.filter(function (x) { return !x.deleted; }) });
+    var stores = _readStores();
+    if (body.stores) { stores = _mergeStores(stores, body.stores); _writeStores(stores); }
+    return _json({ ok: true, items: merged.filter(function (x) { return !x.deleted; }), stores: stores });
   } catch (err) {
     return _json({ ok: false, error: String(err) });
   } finally {

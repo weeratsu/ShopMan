@@ -29,14 +29,14 @@
     position: sticky; top: 0; z-index: 10;
     display: flex; justify-content: space-between; align-items: flex-start;
   }
-  header h1 { font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-  header .sub { font-size: 13px; opacity: .85; margin-top: 2px; }
+  header h1 { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  header .sub { font-size: 12px; opacity: .85; margin-top: 2px; }
   .gear { background: rgba(255,255,255,.18); border: none; color: #fff; font-size: 18px; width: 36px; height: 36px; border-radius: 10px; cursor: pointer; }
   .gear:active { transform: scale(.92); }
-  .syncline { font-size: 11.5px; opacity: .8; margin-top: 4px; min-height: 14px; }
+  .syncline { font-size: 11px; opacity: .8; margin-top: 4px; min-height: 14px; }
   .inputbar { display: flex; gap: 8px; padding: 12px; border-bottom: 1px solid var(--line); position: sticky; top: 86px; background: var(--card); z-index: 9; }
   .inputbar input {
-    flex: 1; font-size: 16px; padding: 12px 14px; border: 1px solid var(--line);
+    flex: 1; font-size: 14px; padding: 12px 14px; border: 1px solid var(--line);
     border-radius: 12px; outline: none; background: #f9fafb;
   }
   .inputbar input:focus { border-color: var(--accent); background: #fff; }
@@ -77,16 +77,16 @@
   }
   li.done .chk { background: var(--done); border-color: var(--done); }
   .body { flex: 1; min-width: 0; }
-  .txt { font-size: 16px; word-break: break-word; cursor: pointer; }
+  .txt { font-size: 14px; word-break: break-word; cursor: pointer; }
   li.done .txt { text-decoration: line-through; color: var(--muted); }
-  .meta { font-size: 11.5px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+  .meta { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
   .meta .buy { color: var(--done); }
   .del {
     background: none; border: none; font-size: 20px; color: var(--muted);
     cursor: pointer; padding: 4px 6px; border-radius: 8px; align-self: flex-start;
   }
   .del:active { background: #fee2e2; color: var(--danger); }
-  .empty { text-align: center; color: var(--muted); padding: 48px 20px; font-size: 15px; line-height: 1.6; }
+  .empty { text-align: center; color: var(--muted); padding: 48px 20px; font-size: 14px; line-height: 1.6; }
   footer {
     display: flex; justify-content: space-between; align-items: center;
     padding: 12px 16px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted);
@@ -99,7 +99,7 @@
   footer button:active { background: #fee2e2; color: var(--danger); border-color: var(--danger); }
   /* Tab bar (ลิสต์ / ร้านค้า) */
   .tabbar { display: flex; gap: 4px; padding: 6px; border-bottom: 1px solid var(--line); position: sticky; top: 71px; background: var(--card); z-index: 9; }
-  .tabbar button { flex: 1; padding: 10px; border: none; background: none; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; border-radius: 10px; transition: .15s; }
+  .tabbar button { flex: 1; padding: 10px; border: none; background: none; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; border-radius: 10px; transition: .15s; }
   .tabbar button.active { color: #fff; background: var(--accent); }
   .tabbar button:not(.active):active { background: #eef2ff; }
   .page { display: none; flex-direction: column; flex: 1; }
@@ -107,13 +107,13 @@
   /* Store filter chips (หน้าลิสต์) */
   .storefilter { display: flex; gap: 7px; padding: 11px 12px; overflow-x: auto; border-bottom: 1px solid var(--line); background: var(--card); scrollbar-width: none; }
   .storefilter::-webkit-scrollbar { display: none; }
-  .chip { flex: 0 0 auto; font-size: 13px; font-weight: 500; padding: 7px 14px; border: 1.5px solid var(--line); border-radius: 999px; background: #fff; color: var(--muted); cursor: pointer; white-space: nowrap; transition: .15s; }
+  .chip { flex: 0 0 auto; font-size: 12px; font-weight: 500; padding: 7px 14px; border: 1.5px solid var(--line); border-radius: 999px; background: #fff; color: var(--muted); cursor: pointer; white-space: nowrap; transition: .15s; }
   .chip:active { transform: scale(.95); }
   .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 2px 8px rgba(79,70,229,.25); }
   .meta .store-tag { color: var(--accent); font-weight: 600; }
   /* Store management page */
   .store-add { display: flex; gap: 8px; padding: 14px 12px; background: #fafbff; border-bottom: 1px solid var(--line); }
-  .store-add input { flex: 1; font-size: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; outline: none; background: #f9fafb; }
+  .store-add input { flex: 1; font-size: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; outline: none; background: #f9fafb; }
   .store-add input:focus { border-color: var(--accent); background: #fff; }
   .store-add button { font-size: 22px; width: 50px; border: none; border-radius: 12px; background: var(--accent); color: #fff; cursor: pointer; font-weight: 700; }
   .store-add button:active { transform: scale(.95); }
@@ -121,7 +121,7 @@
   .store-li { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.04); transition: .15s; }
   .store-li:active { transform: scale(.995); }
   .store-ic { width: 40px; height: 40px; min-width: 40px; border-radius: 11px; background: linear-gradient(135deg,#6366f1,#4f46e5); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 19px; }
-  .store-li .name { flex: 1; font-size: 16px; font-weight: 600; }
+  .store-li .name { flex: 1; font-size: 14px; font-weight: 600; }
   .store-li .cnt { font-size: 12px; font-weight: 500; color: var(--accent); background: #eef2ff; padding: 4px 11px; border-radius: 999px; }
   .store-li .del { background: none; border: none; font-size: 19px; color: var(--muted); cursor: pointer; padding: 6px 8px; border-radius: 9px; transition: .15s; }
   .store-li .del:active { background: #fee2e2; color: var(--danger); }
@@ -240,6 +240,26 @@
   }
   function saveStores() { localStorage.setItem(STKEY, JSON.stringify(stores)); }
 
+  // รวมรายชื่อร้านจาก server + เครื่อง (union, ไม่ซ้ำ)
+  function mergeStores(serverStores) {
+    var set = {}; var out = [];
+    (serverStores || []).concat(stores).forEach(function (s) {
+      if (s && !set[s]) { set[s] = 1; out.push(s); }
+    });
+    return out;
+  }
+
+  // รายชื่อร้านทั้งหมด = union(stores ที่ตั้งไว้, ร้านที่ item ใช้จริง)
+  // กันเคสเปิดอีกเครื่องแล้ว item มี store แต่ stores (localStorage แยกเครื่อง) ยังไม่มี → dropdown จะได้มี option
+  function allStores() {
+    var set = {}; var out = [];
+    stores.forEach(function (s) { if (s && !set[s]) { set[s] = 1; out.push(s); } });
+    items.forEach(function (x) {
+      if (!x.deleted && x.store && !set[x.store]) { set[x.store] = 1; out.push(x.store); }
+    });
+    return out;
+  }
+
   function load() {
     try { return JSON.parse(localStorage.getItem(KEY)) || []; }
     catch (e) { return []; }
@@ -315,8 +335,9 @@
       if (!err && res && res.items) {
         pulledOnce = true;
         items = mergeFromServer(res.items);
+        if (res.stores) stores = mergeStores(res.stores);
         normalizeOrder();
-        save(); render();
+        save(); saveStores(); render();
         setSync("✓ ซิงก์ล่าสุด " + fmt(Date.now()));
       } else { setSync("⚠ ออฟไลน์ (ใช้ข้อมูลในเครื่อง)"); }
     });
@@ -341,13 +362,14 @@
     fetchJson({
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ items: items })
+      body: JSON.stringify({ items: items, stores: stores })
     }, 0, function (err, res) {
       if (!err && res && res.items) {
         pulledOnce = true;
         items = mergeFromServer(res.items);
+        if (res.stores) stores = mergeStores(res.stores);
         normalizeOrder();
-        save(); render();
+        save(); saveStores(); render();
         setSync("✓ ซิงก์ล่าสุด " + fmt(Date.now()));
       } else { setSync("⚠ ออฟไลน์ (บันทึกในเครื่องแล้ว)"); }
     });
@@ -423,7 +445,7 @@
         var optNone = document.createElement("option");
         optNone.value = ""; optNone.textContent = "— ไม่ระบุร้าน —";
         sel.appendChild(optNone);
-        stores.forEach(function (s) {
+        allStores().forEach(function (s) {
           var o = document.createElement("option");
           o.value = s; o.textContent = s;
           if ((it.store || "") === s) o.selected = true;
@@ -644,7 +666,7 @@
   function renderFilter() {
     var bar = document.getElementById("storefilter");
     if (!bar) return;
-    if (!stores.length) { bar.style.display = "none"; return; }
+    if (!allStores().length) { bar.style.display = "none"; return; }
     bar.style.display = "flex";
     bar.innerHTML = "";
     var all = document.createElement("button");
@@ -661,7 +683,7 @@
       none.onclick = function () { activeStore = (activeStore === "__none__" ? "" : "__none__"); render(); };
       bar.appendChild(none);
     }
-    stores.forEach(function (s) {
+    allStores().forEach(function (s) {
       var c = document.createElement("button");
       c.className = "chip" + (activeStore === s ? " active" : "");
       c.textContent = "🏪 " + s;
