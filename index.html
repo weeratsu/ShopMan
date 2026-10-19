@@ -22,10 +22,14 @@
   header {
     background: var(--accent); color: #fff; padding: 18px 16px;
     position: sticky; top: 0; z-index: 10;
+    display: flex; justify-content: space-between; align-items: flex-start;
   }
   header h1 { font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
   header .sub { font-size: 13px; opacity: .85; margin-top: 2px; }
-  .inputbar { display: flex; gap: 8px; padding: 12px; border-bottom: 1px solid var(--line); position: sticky; top: 71px; background: var(--card); z-index: 9; }
+  .gear { background: rgba(255,255,255,.18); border: none; color: #fff; font-size: 18px; width: 36px; height: 36px; border-radius: 10px; cursor: pointer; }
+  .gear:active { transform: scale(.92); }
+  .syncline { font-size: 11.5px; opacity: .8; margin-top: 4px; min-height: 14px; }
+  .inputbar { display: flex; gap: 8px; padding: 12px; border-bottom: 1px solid var(--line); position: sticky; top: 86px; background: var(--card); z-index: 9; }
   .inputbar input {
     flex: 1; font-size: 16px; padding: 12px 14px; border: 1px solid var(--line);
     border-radius: 12px; outline: none; background: #f9fafb;
@@ -45,14 +49,17 @@
   .chk {
     width: 26px; height: 26px; min-width: 26px; border: 2px solid var(--muted);
     border-radius: 50%; cursor: pointer; display: flex; align-items: center;
-    justify-content: center; font-size: 15px; color: #fff; transition: .15s;
+    justify-content: center; font-size: 15px; color: #fff; transition: .15s; margin-top: 2px;
   }
   li.done .chk { background: var(--done); border-color: var(--done); }
-  .txt { flex: 1; font-size: 16px; word-break: break-word; cursor: pointer; }
+  .body { flex: 1; min-width: 0; }
+  .txt { font-size: 16px; word-break: break-word; cursor: pointer; }
   li.done .txt { text-decoration: line-through; color: var(--muted); }
+  .meta { font-size: 11.5px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+  .meta .buy { color: var(--done); }
   .del {
     background: none; border: none; font-size: 20px; color: var(--muted);
-    cursor: pointer; padding: 4px 6px; border-radius: 8px;
+    cursor: pointer; padding: 4px 6px; border-radius: 8px; align-self: flex-start;
   }
   .del:active { background: #fee2e2; color: var(--danger); }
   .empty { text-align: center; color: var(--muted); padding: 48px 20px; font-size: 15px; line-height: 1.6; }
@@ -66,13 +73,32 @@
     padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 13px;
   }
   footer button:active { background: #fee2e2; color: var(--danger); border-color: var(--danger); }
+  /* Settings overlay */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
+  .overlay.open { display: flex; }
+  .sheet { background: #fff; border-radius: 16px; padding: 20px; width: 100%; max-width: 440px; }
+  .sheet h2 { font-size: 17px; margin-bottom: 4px; }
+  .sheet p { font-size: 12.5px; color: var(--muted); margin-bottom: 14px; line-height: 1.5; }
+  .sheet label { font-size: 13px; font-weight: 600; display: block; margin-bottom: 6px; }
+  .sheet input[type=text] { width: 100%; font-size: 14px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; outline: none; }
+  .sheet input[type=text]:focus { border-color: var(--accent); }
+  .row { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 14px; }
+  .btns { display: flex; gap: 8px; margin-top: 18px; }
+  .btns button { flex: 1; padding: 11px; border-radius: 10px; border: none; font-size: 14px; cursor: pointer; font-weight: 600; }
+  .btns .save { background: var(--accent); color: #fff; }
+  .btns .cancel { background: #f3f4f6; color: var(--ink); }
+  .btns .save:active, .btns .cancel:active { transform: scale(.97); }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>🛒 ShopMan</h1>
-    <div class="sub">จดของที่หมด แล้วกดเช็คเมื่อซื้อแล้ว</div>
+    <div>
+      <h1>🛒 ShopMan</h1>
+      <div class="sub">จดของที่หมด แล้วกดเช็คเมื่อซื้อแล้ว</div>
+      <div class="syncline" id="syncline"></div>
+    </div>
+    <button class="gear" id="gear" title="ตั้งค่า">⚙</button>
   </header>
   <div class="inputbar">
     <input id="inp" type="text" placeholder="เช่น นมสด, ไข่ไก่, น้ำยาล้างจาน..." autocomplete="off">
@@ -85,30 +111,106 @@
   </footer>
 </div>
 
+<!-- Settings -->
+<div class="overlay" id="overlay">
+  <div class="sheet">
+    <h2>⚙ ตั้งค่า Sync</h2>
+    <p>วาง Web App URL จาก Google Apps Script (ลงท้าย /exec) เพื่อให้คอมและมือถือใช้ลิสต์เดียวกัน</p>
+    <label>Google Apps Script Web App URL</label>
+    <input type="text" id="urlInput" placeholder="https://script.google.com/macros/s/XXX/exec" autocomplete="off">
+    <div class="row">
+      <input type="checkbox" id="pauseChk" style="width:18px;height:18px;">
+      <label for="pauseChk" style="margin:0;font-weight:500;">หยุด sync ชั่วคราว (ใช้เฉพาะเครื่องนี้)</label>
+    </div>
+    <div class="btns">
+      <button class="cancel" id="cfgCancel">ยกเลิก</button>
+      <button class="save" id="cfgSave">บันทึก</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (function () {
   "use strict";
   var KEY = "shoppinglist.items.v1";
+  var CFG = "shoppinglist.cfg.v1";
   var list = document.getElementById("list");
   var inp  = document.getElementById("inp");
   var items = load();
+  var cfg = loadCfg();
 
   function load() {
     try { return JSON.parse(localStorage.getItem(KEY)) || []; }
     catch (e) { return []; }
   }
   function save() { localStorage.setItem(KEY, JSON.stringify(items)); }
+  function loadCfg() {
+    try { return JSON.parse(localStorage.getItem(CFG)) || { url: "", pause: false }; }
+    catch (e) { return { url: "", pause: false }; }
+  }
+  function saveCfg() { localStorage.setItem(CFG, JSON.stringify(cfg)); }
 
+  function setSync(txt) { document.getElementById("syncline").textContent = txt || ""; }
+
+  function fmt(ts) {
+    if (!ts) return "";
+    var d = new Date(ts);
+    var dd = ("0" + d.getDate()).slice(-2);
+    var mm = ("0" + (d.getMonth() + 1)).slice(-2);
+    var yy = d.getFullYear();
+    var hh = ("0" + d.getHours()).slice(-2);
+    var mi = ("0" + d.getMinutes()).slice(-2);
+    return dd + "/" + mm + "/" + yy + " " + hh + ":" + mi;
+  }
+
+  /* ---------- sync ---------- */
+  function canSync() { return cfg.url && !cfg.pause; }
+
+  function pull() {
+    if (!canSync()) return;
+    setSync("⏳ กำลังดึงข้อมูล...");
+    fetch(cfg.url, { method: "GET" })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res && res.ok && res.items) {
+          items = res.items.filter(function (x) { return !x.deleted; });
+          save(); render();
+          setSync("✓ ซิงก์ล่าสุด " + fmt(Date.now()));
+        } else { setSync("⚠ ดึงข้อมูลไม่สำเร็จ"); }
+      })
+      .catch(function () { setSync("⚠ ออฟไลน์ (ใช้ข้อมูลในเครื่อง)"); });
+  }
+
+  function push() {
+    if (!canSync()) return;
+    setSync("⏳ กำลังซิงก์...");
+    fetch(cfg.url, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ items: items })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res && res.ok && res.items) {
+          items = res.items.filter(function (x) { return !x.deleted; });
+          save(); render();
+          setSync("✓ ซิงก์ล่าสุด " + fmt(Date.now()));
+        } else { setSync("⚠ ซิงก์ไม่สำเร็จ"); }
+      })
+      .catch(function () { setSync("⚠ ออฟไลน์ (บันทึกในเครื่องแล้ว)"); });
+  }
+
+  /* ---------- render ---------- */
   function render() {
     list.innerHTML = "";
-    if (!items.length) {
+    var visible = items.filter(function (x) { return !x.deleted; });
+    if (!visible.length) {
       var e = document.createElement("div");
       e.className = "empty";
       e.innerHTML = "ยังไม่มีรายการ<br>พิมพ์ของที่ต้องซื้อด้านบนแล้วกด +";
       list.appendChild(e);
     } else {
-      // ยังไม่ซื้ออยู่บน, ซื้อแล้วไปล่าง
-      var sorted = items.slice().sort(function (a, b) { return a.done - b.done; });
+      var sorted = visible.slice().sort(function (a, b) { return a.done - b.done; });
       sorted.forEach(function (it) {
         var li = document.createElement("li");
         if (it.done) li.className = "done";
@@ -116,45 +218,92 @@
         var chk = document.createElement("div");
         chk.className = "chk";
         chk.textContent = it.done ? "✓" : "";
-        chk.onclick = function () { it.done = !it.done; save(); render(); };
+        chk.onclick = function () { toggle(it); };
+
+        var body = document.createElement("div");
+        body.className = "body";
 
         var txt = document.createElement("div");
         txt.className = "txt";
         txt.textContent = it.text;
-        txt.onclick = function () { it.done = !it.done; save(); render(); };
+        txt.onclick = function () { toggle(it); };
+
+        var meta = document.createElement("div");
+        meta.className = "meta";
+        var html = "➕ เพิ่ม: " + fmt(it.addedAt);
+        if (it.done && it.doneAt) html += "<br><span class=\"buy\">✓ ซื้อ: " + fmt(it.doneAt) + "</span>";
+        meta.innerHTML = html;
+
+        body.appendChild(txt); body.appendChild(meta);
 
         var del = document.createElement("button");
         del.className = "del";
         del.textContent = "✕";
-        del.onclick = function () {
-          items = items.filter(function (x) { return x.id !== it.id; });
-          save(); render();
-        };
+        del.onclick = function () { removeItem(it); };
 
-        li.appendChild(chk); li.appendChild(txt); li.appendChild(del);
+        li.appendChild(chk); li.appendChild(body); li.appendChild(del);
         list.appendChild(li);
       });
     }
-    var left = items.filter(function (x) { return !x.done; }).length;
+    var left = items.filter(function (x) { return !x.deleted && !x.done; }).length;
     document.getElementById("count").textContent = left + " รายการที่ต้องซื้อ";
+  }
+
+  /* ---------- mutations (ดัน sync ทุกครั้ง) ---------- */
+  function toggle(it) {
+    it.done = !it.done;
+    it.doneAt = it.done ? Date.now() : null;
+    it.updatedAt = Date.now();
+    save(); render(); push();
+  }
+
+  function removeItem(it) {
+    it.deleted = true;
+    it.updatedAt = Date.now();
+    save(); render(); push();
   }
 
   function add() {
     var t = inp.value.trim();
     if (!t) return;
-    items.push({ id: Date.now() + "" + Math.random().toString(36).slice(2, 6), text: t, done: false });
+    var now = Date.now();
+    items.push({ id: now + "" + Math.random().toString(36).slice(2, 6), text: t, done: false, addedAt: now, doneAt: null, updatedAt: now, deleted: false });
     inp.value = "";
-    save(); render(); inp.focus();
+    save(); render(); inp.focus(); push();
   }
 
   document.getElementById("add").onclick = add;
   inp.addEventListener("keydown", function (e) { if (e.key === "Enter") add(); });
   document.getElementById("clearDone").onclick = function () {
-    items = items.filter(function (x) { return !x.done; });
-    save(); render();
+    var now = Date.now();
+    items.forEach(function (x) { if (x.done && !x.deleted) { x.deleted = true; x.updatedAt = now; } });
+    save(); render(); push();
   };
 
+  /* ---------- settings ---------- */
+  var overlay = document.getElementById("overlay");
+  document.getElementById("gear").onclick = function () {
+    document.getElementById("urlInput").value = cfg.url || "";
+    document.getElementById("pauseChk").checked = !!cfg.pause;
+    overlay.classList.add("open");
+  };
+  document.getElementById("cfgCancel").onclick = function () { overlay.classList.remove("open"); };
+  overlay.onclick = function (e) { if (e.target === overlay) overlay.classList.remove("open"); };
+  document.getElementById("cfgSave").onclick = function () {
+    var wasPaused = cfg.pause;
+    cfg.url = document.getElementById("urlInput").value.trim();
+    cfg.pause = document.getElementById("pauseChk").checked;
+    saveCfg();
+    overlay.classList.remove("open");
+    // เปิด sync ใหม่ (หรือเพิ่ง set url) → ดึงล่าสุดแล้วดันของเราขึ้นไป merge
+    if (canSync()) { push(); }
+    else setSync(cfg.pause ? "⏸ หยุด sync ชั่วคราว" : "");
+  };
+
+  /* ---------- boot ---------- */
   render();
+  if (canSync()) pull();
+  else if (cfg.pause) setSync("⏸ หยุด sync ชั่วคราว");
 })();
 </script>
 </body>
