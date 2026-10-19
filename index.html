@@ -316,16 +316,57 @@
     return items.filter(function (x) { return !x.deleted; }).length > 0;
   }
 
+  // merge server + local แบบ last-write-wins ตาม updatedAt — เก็บ tombstone (deleted) ไว้ด้วย
+  // ไม่ทิ้ง deleted: ต้องเก็บไว้ส่ง server จนกว่าจะยืนยัน ไม่งั้นลบแล้วเด้งกลับ
   function mergeFromServer(serverItems) {
-    var localById = {};
-    items.forEach(function (x) { localById[x.id] = x; });
-    return serverItems.filter(function (x) { return !x.deleted; }).map(function (sv) {
-      var lo = localById[sv.id];
-      if (lo) {
-        if ((sv.store == null || sv.store === "") && lo.store) sv.store = lo.store;
-        if ((sv.order == null || sv.order === 0) && lo.order) sv.order = lo.order;
-      }
-      return sv;
+    var byId = {};
+    items.forEach(function (x) { byId[x.id] = x; });        // local ก่อน
+    (serverItems || []).forEach(function (sv) {
+      var lo = byId[sv.id];
+      if (!lo) { byId[sv.id] = sv; return; }
+      // ใครมี updatedAt ใหม่กว่า ชนะทั้ง record
+      if ((sv.updatedAt || 0) > (lo.updatedAt || 0)) byId[sv.id] = sv;
+      // updatedAt เท่ากัน: ถ้าฝั่งใดฝั่งหนึ่ง deleted ให้ deleted ชนะ (tombstone เหนียวแน่น)
+      else if ((sv.updatedAt || 0) === (lo.updatedAt || 0) && sv.deleted) byId[sv.id] = sv;
+    });
+    return Object.keys(byId).map(function (k) { return byId[k]; });
+  }
+
+  // ===== sync engine: push ทีละครั้ง + dirty flag + debounce (กัน race) =====
+  var syncing = false;      // กำลัง push อยู่ไหม (in-flight)
+  var dirty = false;        // มีการเปลี่ยนแปลงค้างระหว่าง push
+  var syncTimer = null;     // debounce timer
+
+  // เรียกตัวนี้แทน push() ทุกครั้งที่มี mutation — รวม/หน่วง/กันซ้อนให้เอง
+  function scheduleSync() {
+    if (!canSync()) return;
+    dirty = true;
+    if (syncTimer) clearTimeout(syncTimer);
+    syncTimer = setTimeout(function () { syncTimer = null; runSync(); }, 400);
+  }
+
+  function runSync() {
+    if (!canSync()) return;
+    if (syncing) { dirty = true; return; }   // มี push ค้าง → ค่อย push รอบเดียวหลังเสร็จ
+    // GUARD empty-overwrite: เครื่องเปล่าเปิดครั้งแรก ต้อง pull ก่อน
+    if (!pulledOnce && !hadLocal) { pull(); return; }
+    syncing = true; dirty = false;
+    setSync("⏳ กำลังซิงก์...");
+    fetchJson({
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ items: items, stores: stores })
+    }, 0, function (err, res) {
+      syncing = false;
+      if (!err && res && res.items) {
+        pulledOnce = true;
+        items = mergeFromServer(res.items);
+        if (res.stores) stores = mergeStores(res.stores);
+        normalizeOrder();
+        save(); saveStores(); render();
+        setSync("✓ ซิงก์ล่าสุด " + fmt(Date.now()));
+      } else { setSync("⚠ ออฟไลน์ (บันทึกในเครื่องแล้ว)"); }
+      if (dirty) runSync();   // มีการแก้ระหว่าง push → push ต่ออีกรอบเดียว
     });
   }
 
@@ -344,37 +385,7 @@
     });
   }
 
-  function push() {
-    if (!canSync()) return;
-    // GUARD 2 ชั้น กัน empty-overwrite:
-    //  (1) ถ้ายังไม่เคย pull สำเร็จ และตอนเปิดเครื่องไม่มีข้อมูลเดิม → ห้าม push
-    //      (เครื่องเปล่าเปิดครั้งแรก ต้องรอ pull ก่อน)
-    //  (2) ถ้าในเครื่องว่าง (ไม่มีรายการจริง) และยังไม่เคย pull → ห้าม push ทับ
-    if (!pulledOnce && !hadLocal) {
-      setSync("⏳ รอดึงข้อมูลจาก Sheet ก่อน...");
-      pull();
-      return;
-    }
-    if (!hasRealData() && !pulledOnce) {
-      setSync("⚠ ข้ามการ sync (เครื่องว่าง ยังไม่ได้ดึงจาก Sheet)");
-      return;
-    }
-    setSync("⏳ กำลังซิงก์...");
-    fetchJson({
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ items: items, stores: stores })
-    }, 0, function (err, res) {
-      if (!err && res && res.items) {
-        pulledOnce = true;
-        items = mergeFromServer(res.items);
-        if (res.stores) stores = mergeStores(res.stores);
-        normalizeOrder();
-        save(); saveStores(); render();
-        setSync("✓ ซิงก์ล่าสุด " + fmt(Date.now()));
-      } else { setSync("⚠ ออฟไลน์ (บันทึกในเครื่องแล้ว)"); }
-    });
-  }
+  /* push() เดิมถูกแทนด้วย runSync()/scheduleSync() ด้านบน */
 
   /* ---------- render ---------- */
   // สร้าง signature ของสถานะที่มีผลต่อการแสดงผล — ถ้าไม่เปลี่ยน ไม่ต้อง re-render (กันจอกระพริบ)
@@ -485,7 +496,7 @@
     it.done = !it.done;
     it.doneAt = it.done ? Date.now() : null;
     it.updatedAt = Date.now();
-    save(); render(true); push();
+    save(); render(true); scheduleSync();
   }
 
   /* ---------- drag reorder (เมาส์ + นิ้ว) — ย้าย ghost placeholder ใน DOM ---------- */
@@ -611,13 +622,13 @@
       var it = items.filter(function (x) { return x.id === id; })[0];
       if (it) { it.order = i + 1; it.updatedAt = now; }
     });
-    save(); render(true); push();
+    save(); render(true); scheduleSync();
   }
 
   function removeItem(it) {
     it.deleted = true;
     it.updatedAt = Date.now();
-    save(); render(true); push();
+    save(); render(true); scheduleSync();
   }
 
   function add() {
@@ -627,7 +638,7 @@
     var maxOrder = items.reduce(function (m, x) { return Math.max(m, x.order == null ? 0 : x.order); }, 0);
     items.push({ id: now + "" + Math.random().toString(36).slice(2, 6), text: t, done: false, addedAt: now, doneAt: null, updatedAt: now, deleted: false, order: maxOrder + 1, store: "" });
     inp.value = "";
-    save(); render(true); inp.focus(); push();
+    save(); render(true); inp.focus(); scheduleSync();
   }
 
   document.getElementById("add").onclick = add;
@@ -635,7 +646,7 @@
   document.getElementById("clearDone").onclick = function () {
     var now = Date.now();
     items.forEach(function (x) { if (x.done && !x.deleted) { x.deleted = true; x.updatedAt = now; } });
-    save(); render(true); push();
+    save(); render(true); scheduleSync();
   };
 
   /* ---------- store (ร้านค้า) ---------- */
@@ -660,7 +671,7 @@
     if (activeStore && (activeStore === "__none__" ? !!it.store : (it.store || "") !== activeStore)) {
       render(true);
     }
-    push();
+    scheduleSync();
   }
 
   // แถบ filter ร้าน (หน้าลิสต์) — ปุ่ม "ทั้งหมด" + ปุ่มรายร้าน
@@ -699,7 +710,7 @@
     var hint = document.getElementById("storeHint");
     // ดูดร้านที่ item ใช้จริงแต่ยังไม่มีใน stores เข้ามา (เช่น Watsons ที่ map ไว้ก่อนมีระบบ stores) + sync
     var merged = allStores();
-    if (merged.length !== stores.length) { stores = merged; saveStores(); push(); }
+    if (merged.length !== stores.length) { stores = merged; saveStores(); scheduleSync(); }
     box.innerHTML = "";
     hint.style.display = stores.length ? "none" : "block";
     allStores().forEach(function (s, idx) {
@@ -737,7 +748,7 @@
     var now = Date.now();
     items.forEach(function (x) { if (x.store === s) { x.store = ""; x.updatedAt = now; } });
     if (activeStore === s) activeStore = "";
-    save(); renderStores(); render(true); push();
+    save(); renderStores(); render(true); scheduleSync();
   }
 
   document.getElementById("storeAdd").onclick = addStore;
@@ -771,7 +782,7 @@
     saveCfg();
     overlay.classList.remove("open");
     // เปิด sync ใหม่ (หรือเพิ่ง set url) → ดึงล่าสุดแล้วดันของเราขึ้นไป merge
-    if (canSync()) { push(); }
+    if (canSync()) { scheduleSync(); }
     else setSync(cfg.pause ? "⏸ หยุด sync ชั่วคราว" : "");
   };
 
@@ -786,7 +797,16 @@
     save();
   }
 
+  // ลบ tombstone (deleted) ที่เก่ากว่า 30 วัน กันสะสมไม่รู้จบ (ลบไปนานแล้ว ทุกเครื่องรับรู้แล้ว)
+  function pruneTombstones() {
+    var cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    var before = items.length;
+    items = items.filter(function (x) { return !(x.deleted && (x.updatedAt || 0) < cutoff); });
+    if (items.length !== before) save();
+  }
+
   /* ---------- boot ---------- */
+  pruneTombstones();
   normalizeOrder();
   render();
   if (canSync()) pull();

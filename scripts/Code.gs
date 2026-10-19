@@ -113,7 +113,8 @@ function _merge(serverItems, clientItems) {
 }
 
 function doGet() {
-  return _json({ ok: true, items: _readAll().filter(function (x) { return !x.deleted; }), stores: _readStores() });
+  // ส่ง tombstone (deleted) กลับไปด้วย — client ต้องรู้ว่าถูกลบเพื่อ sync การลบข้ามเครื่อง
+  return _json({ ok: true, items: _readAll(), stores: _readStores() });
 }
 
 function doPost(e) {
@@ -126,7 +127,8 @@ function doPost(e) {
     _writeAll(merged);
     var stores = _readStores();
     if (body.stores) { stores = _mergeStores(stores, body.stores); _writeStores(stores); }
-    return _json({ ok: true, items: merged.filter(function (x) { return !x.deleted; }), stores: stores });
+    // ส่ง tombstone กลับไปด้วย (ไม่ filter) — client จะได้ลบตาม
+    return _json({ ok: true, items: merged, stores: stores });
   } catch (err) {
     return _json({ ok: false, error: String(err) });
   } finally {
