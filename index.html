@@ -176,6 +176,7 @@
   </header>
   <div class="tabbar">
     <button id="tabList" class="active" data-page="list">🛒 ลิสต์</button>
+    <button id="tabDone" data-page="done">✅ ซื้อแล้ว</button>
     <button id="tabStore" data-page="store">🏪 ร้านค้า</button>
   </div>
 
@@ -191,6 +192,15 @@
     <footer>
       <span id="count">0 รายการ</span>
       <button id="clearDone">ลบที่ซื้อแล้ว</button>
+    </footer>
+  </div>
+
+  <!-- หน้า: ซื้อแล้ว -->
+  <div class="page" id="page-done">
+    <ul id="doneList"></ul>
+    <footer>
+      <span id="doneCount">0 รายการ</span>
+      <button id="clearDone2">ลบที่ซื้อแล้ว</button>
     </footer>
   </div>
 
@@ -425,7 +435,7 @@
     renderTripHint();
     list.innerHTML = "";
     var visible = items.filter(function (x) {
-      if (x.deleted) return false;
+      if (x.deleted || x.done) return false;
       if (activeStore === "__none__") { if (x.store) return false; }  // เฉพาะที่ไม่ระบุร้าน
       else if (activeStore && (x.store || "") !== activeStore) return false; // filter ตามร้าน
       return true;
@@ -509,6 +519,40 @@
     }
     var left = items.filter(function (x) { return !x.deleted && !x.done; }).length;
     document.getElementById("count").textContent = left + " รายการที่ต้องซื้อ";
+    renderDone();
+  }
+
+  function renderDone() {
+    var box = document.getElementById("doneList");
+    if (!box) return;
+    box.innerHTML = "";
+    var done = items.filter(function (x) { return !x.deleted && x.done; })
+                    .sort(function (a, b) { return (b.doneAt || 0) - (a.doneAt || 0); });
+    if (!done.length) {
+      var e = document.createElement("div");
+      e.className = "empty";
+      e.innerHTML = "ยังไม่มีของที่ซื้อแล้ว";
+      box.appendChild(e);
+    }
+    done.forEach(function (it) {
+      var li = document.createElement("li"); li.className = "done";
+      var chk = document.createElement("div"); chk.className = "chk"; chk.textContent = "✓";
+      chk.onclick = function () { toggle(it); };
+      var body = document.createElement("div"); body.className = "body";
+      var txt = document.createElement("div"); txt.className = "txt"; txt.textContent = it.text;
+      txt.onclick = function () { toggle(it); };
+      var meta = document.createElement("div"); meta.className = "meta";
+      var m = "➕ เพิ่ม: " + fmt(it.addedAt);
+      if (isValidStore(it.store)) m += "  <span class='store-tag'>🏪 " + it.store + "</span>";
+      if (it.doneAt) m += "<br><span class='buy'>✓ ซื้อ: " + fmt(it.doneAt) + "</span>";
+      meta.innerHTML = m;
+      body.appendChild(txt); body.appendChild(meta);
+      var del = document.createElement("button"); del.className = "del"; del.textContent = "✕";
+      del.onclick = function () { removeItem(it); };
+      li.appendChild(chk); li.appendChild(body); li.appendChild(del);
+      box.appendChild(li);
+    });
+    document.getElementById("doneCount").textContent = done.length + " รายการซื้อแล้ว";
   }
 
   /* ---------- mutations (ดัน sync ทุกครั้ง) ---------- */
@@ -816,6 +860,8 @@
   function switchPage(pg) {
     document.getElementById("tabList").classList.toggle("active", pg === "list");
     document.getElementById("tabStore").classList.toggle("active", pg === "store");
+    document.getElementById("tabDone").classList.toggle("active", pg === "done");
+    document.getElementById("page-done").classList.toggle("active", pg === "done");
     document.getElementById("page-list").classList.toggle("active", pg === "list");
     document.getElementById("page-store").classList.toggle("active", pg === "store");
     if (pg === "store") renderStores();
@@ -823,6 +869,8 @@
   }
   document.getElementById("tabList").onclick = function () { switchPage("list"); };
   document.getElementById("tabStore").onclick = function () { switchPage("store"); };
+  document.getElementById("tabDone").onclick = function () { switchPage("done"); };
+  document.getElementById("clearDone2").onclick = function () { document.getElementById("clearDone").onclick(); };
 
   /* ---------- settings ---------- */
   var overlay = document.getElementById("overlay");
